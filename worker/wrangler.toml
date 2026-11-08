@@ -1,0 +1,18 @@
+name = "smart-attendance-relay"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+# Optional hardening (recommended): a KV namespace gives durable duplicate
+# protection and rate limiting across all Cloudflare locations.
+#   npx wrangler kv namespace create ATTENDANCE_KV
+# then paste the printed id below and remove the leading "#".
+#
+# [[kv_namespaces]]
+# binding = "ATTENDANCE_KV"
+# id = "PASTE_NAMESPACE_ID_HERE"
+
+# Optional plain variables:
+# [vars]
+# ALLOWED_CHAT_IDS = "123456789"
+# RATE_LIMIT_PER_MINUTE = "30"

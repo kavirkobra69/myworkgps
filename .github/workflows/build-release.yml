@@ -1,0 +1,132 @@
+name: Build and Release APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build signed APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-34 build-tools;34.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Read version from project
+        id: ver
+        run: |
+          NAME="$(sed -n 's/^val appVersionName = "\(.*\)"/\1/p' app/build.gradle.kts | head -n1)"
+          CODE="$(sed -n 's/^val appVersionCode = \([0-9]*\)/\1/p' app/build.gradle.kts | head -n1)"
+          if [ -z "$NAME" ] || [ -z "$CODE" ]; then
+            echo "::error::Could not read appVersionName / appVersionCode from app/build.gradle.kts"
+            exit 1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Building version $NAME (code $CODE)"
+
+      - name: Run unit tests
+        run: gradle --no-daemon --stacktrace testDebugUnitTest
+
+      - name: Prepare signing key
+        id: sign
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          KS="$RUNNER_TEMP/release.jks"
+          if [ -n "${KEYSTORE_BASE64:-}" ] && [ -n "${KEYSTORE_PASSWORD:-}" ] && [ -n "${KEY_ALIAS:-}" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KS"
+            SP="$KEYSTORE_PASSWORD"
+            KP="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            AL="$KEY_ALIAS"
+            echo "mode=secrets" >> "$GITHUB_OUTPUT"
+            echo "Signing with the keystore from repository secrets."
+          else
+            SP="$(openssl rand -hex 16)"
+            KP="$SP"
+            AL="smartattendance"
+            echo "::add-mask::$SP"
+            keytool -genkeypair -noprompt -keystore "$KS" -storetype PKCS12 \
+              -alias "$AL" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$SP" -keypass "$KP" \
+              -dname "CN=Smart Attendance Temporary, O=MmdKavir, C=IR"
+            echo "mode=temporary" >> "$GITHUB_OUTPUT"
+            echo "::warning::Signing secrets are not set. Using a temporary key. Updates will not install over a previous build. See README to add KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD."
+          fi
+          echo "::add-mask::$SP"
+          echo "::add-mask::$KP"
+          {
+            echo "KEYSTORE_PATH=$KS"
+            echo "KEYSTORE_PASSWORD=$SP"
+            echo "KEY_ALIAS=$AL"
+            echo "KEY_PASSWORD=$KP"
+          } >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        run: gradle --no-daemon --stacktrace assembleRelease
+
+      - name: Verify APK signature
+        id: apk
+        run: |
+          SRC="app/build/outputs/apk/release/app-release.apk"
+          if [ ! -f "$SRC" ]; then
+            echo "::error::Signed release APK not found at $SRC"
+            ls -R app/build/outputs || true
+            exit 1
+          fi
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)/apksigner"
+          "$APKSIGNER" verify --verbose "$SRC"
+          OUT="SmartAttendance-v${{ steps.ver.outputs.name }}.apk"
+          cp "$SRC" "$OUT"
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+          ls -lh "$OUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SmartAttendance-v${{ steps.ver.outputs.name }}
+          path: ${{ steps.apk.outputs.file }}
+          retention-days: 30
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.name }}
+          name: Smart Attendance v${{ steps.ver.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ steps.sign.outputs.mode != 'secrets' }}
+          fail_on_unmatched_files: true
+          files: ${{ steps.apk.outputs.file }}
+          body: |
+            Smart Attendance v${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})
+
+            Download `${{ steps.apk.outputs.file }}` below and install it on your Android phone.
+
+            Signing: ${{ steps.sign.outputs.mode == 'secrets' && 'release key from repository secrets' || 'TEMPORARY key (signing secrets not configured). To update the app you must uninstall this build first. Add the signing secrets to get stable updates.' }}

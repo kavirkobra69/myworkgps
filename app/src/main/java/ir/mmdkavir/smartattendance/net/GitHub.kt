@@ -82,7 +82,7 @@ object GitHub {
     }
 
     /** System DNS first; DNS-over-HTTPS only when the system resolver fails. */
-    private val dns = object : Dns {
+    internal val dns = object : Dns {
         override fun lookup(hostname: String): List<InetAddress> = try {
             Dns.SYSTEM.lookup(hostname)
         } catch (e: UnknownHostException) {
@@ -97,7 +97,7 @@ object GitHub {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private class Reply(val code: Int, val json: JSONObject?, val scopes: String?)
+    private class Reply(val code: Int, val json: JSONObject?, val scopes: String?, val array: org.json.JSONArray? = null)
 
     fun describeNetworkError(e: IOException): String = when (e) {
         is UnknownHostException -> "Cannot resolve api.github.com. Check your internet connection or DNS."
@@ -124,7 +124,12 @@ object GitHub {
                     null
                 }
                 if (r.code >= 400) throw mapError(r.code, json, r.header("x-ratelimit-remaining"), r.header("retry-after"), r.header("x-ratelimit-reset"))
-                return Reply(r.code, json, r.header("x-oauth-scopes"))
+                val array = try {
+                    if (text.startsWith("[")) org.json.JSONArray(text) else null
+                } catch (e: Exception) {
+                    null
+                }
+                return Reply(r.code, json, r.header("x-oauth-scopes"), array)
             }
         } catch (e: IOException) {
             throw GhException(describeNetworkError(e), retryable = true)
@@ -335,7 +340,7 @@ object GitHub {
         return null
     }
 
-    /** Best-effort reason for a failed run: the name of the failed step. */
+    /** Best-effort reason for a failed run: the workflow's own error annotation, else the failed step. */
     fun failureReason(token: String, repo: RepoRef, runId: Long): String? = try {
         val jobs = call(token, "GET", "${repoPath(repo)}/actions/runs/$runId/jobs").json?.optJSONArray("jobs")
         var reason: String? = null
@@ -343,6 +348,16 @@ object GitHub {
             for (i in 0 until jobs.length()) {
                 val job = jobs.getJSONObject(i)
                 if (job.optString("conclusion") != "failure") continue
+                val notes = call(token, "GET", "${repoPath(repo)}/check-runs/${job.optLong("id")}/annotations").array
+                val message = notes?.let { arr ->
+                    (0 until arr.length()).map { arr.getJSONObject(it) }
+                        .firstOrNull { it.optString("annotation_level") == "failure" && !it.optString("message").startsWith("Process completed") }
+                        ?.optString("message")
+                }
+                if (!message.isNullOrBlank()) {
+                    reason = message
+                    break
+                }
                 reason = job.optJSONArray("steps")?.let { steps ->
                     (0 until steps.length()).map { steps.getJSONObject(it) }
                         .firstOrNull { it.optString("conclusion") == "failure" }?.optString("name")

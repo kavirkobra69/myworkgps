@@ -10,7 +10,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
-import ir.mmdkavir.smartattendance.net.TelegramClient
+import ir.mmdkavir.smartattendance.net.GitHub
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -54,7 +54,7 @@ object Updater {
     private val APK_NAME = Regex("^[A-Za-z0-9._-]{1,100}\\.apk$")
 
     private val http = OkHttpClient.Builder()
-        .dns(TelegramClient.dns)
+        .dns(GitHub.dns)
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
@@ -142,7 +142,7 @@ object Updater {
                 resp.body?.string().orEmpty()
             }
         } catch (e: IOException) {
-            throw UpdateException(TelegramClient.describeNetworkError(e, "github.com") + " Updates are downloaded from GitHub.")
+            throw UpdateException(GitHub.describeNetworkError(e) + " Updates are downloaded from GitHub.")
         }
         return pickLatest(body) ?: throw UpdateException("No release with an APK file was found.")
     }
@@ -212,7 +212,7 @@ object Updater {
             }
         } catch (e: IOException) {
             part.delete()
-            throw UpdateException(TelegramClient.describeNetworkError(e, "github.com"))
+            throw UpdateException(GitHub.describeNetworkError(e))
         } catch (e: UpdateException) {
             part.delete()
             throw e

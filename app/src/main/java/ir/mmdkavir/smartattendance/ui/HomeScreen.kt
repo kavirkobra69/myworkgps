@@ -97,10 +97,10 @@ fun HomeScreen(
         )
 
         status == GeoStatus.TELEGRAM_ERROR -> StatusUi(
-            "Telegram Connection Error",
+            "Delivery Error",
             s.tgError.ifBlank { "Messages could not be delivered." } + " Unsent messages stay queued.",
-            StatusColors.error, Icons.Default.CloudOff, "Test connection"
-        ) { vm.testTelegram() }
+            StatusColors.error, Icons.Default.CloudOff, "Open settings to fix"
+        ) { vm.sendTest() }
 
         status == GeoStatus.INSIDE -> StatusUi(
             "Inside Workplace", "Monitoring Active. Your arrival is recorded for this visit.",
@@ -181,10 +181,10 @@ fun HomeScreen(
                 Icons.Default.GpsFixed
             )
             val tgText = when {
-                !s.notifyEnabled -> "Telegram Off"
-                s.tgStatus == 1 -> "Telegram OK"
-                s.tgStatus == 2 -> "Telegram Error"
-                else -> "Telegram Untested"
+                !s.notifyEnabled -> "Sending Off"
+                s.tgStatus == 1 -> "GitHub OK"
+                s.tgStatus == 2 -> "Delivery Error"
+                else -> "Delivery Untested"
             }
             val tgColor = when {
                 !s.notifyEnabled -> MaterialTheme.colorScheme.outline

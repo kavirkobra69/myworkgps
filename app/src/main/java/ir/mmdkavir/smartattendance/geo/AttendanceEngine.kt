@@ -7,7 +7,7 @@ import ir.mmdkavir.smartattendance.data.AttendanceRecord
 import ir.mmdkavir.smartattendance.data.Keys
 import ir.mmdkavir.smartattendance.data.OutboxItem
 import ir.mmdkavir.smartattendance.data.Prefs
-import ir.mmdkavir.smartattendance.net.Messages
+import ir.mmdkavir.smartattendance.net.Payload
 import ir.mmdkavir.smartattendance.util.Fmt
 import ir.mmdkavir.smartattendance.util.Geo
 import ir.mmdkavir.smartattendance.work.SendWorker
@@ -66,11 +66,11 @@ object AttendanceEngine {
                 putLong(Keys.LAST_ARRIVAL, arrival)
             }
 
-            if (s.notifyEnabled) {
+            if (s.notifyEnabled && s.ghReady) {
                 db.outbox().insert(
                     OutboxItem(
                         eventId = record.eventId,
-                        text = Messages.arrival(s, record),
+                        text = Payload.toJson(Payload.arrival(s, record)),
                         createdAt = now
                     )
                 )

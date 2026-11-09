@@ -39,7 +39,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
-private val STEP_TITLES = listOf("Your details", "Workplace location", "Telegram", "Permissions")
+private val STEP_TITLES = listOf("Your details", "Workplace location", "GitHub & Telegram", "Permissions")
 
 @Composable
 fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifier = Modifier) {
@@ -54,22 +54,11 @@ fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifie
     var lat by rememberSaveable { mutableStateOf<Double?>(if (s.hasLocation) s.lat else null) }
     var lng by rememberSaveable { mutableStateOf<Double?>(if (s.hasLocation) s.lng else null) }
     var radius by rememberSaveable { mutableIntStateOf(s.radius) }
-    var chat by rememberSaveable { mutableStateOf(s.chatId) }
-    var url by rememberSaveable { mutableStateOf(s.workerUrl) }
-    var key by rememberSaveable { mutableStateOf("") }
-    var autoSend by rememberSaveable { mutableStateOf(true) }
-
-    val telegramReady = chat.isNotBlank() && url.trim().startsWith("https://") && (key.isNotBlank() || s.hasAppKey)
 
     val canNext = when (step) {
         0 -> name.isNotBlank() && place.isNotBlank()
         1 -> lat != null && lng != null
-        2 -> !autoSend || telegramReady
         else -> true
-    }
-
-    fun saveTelegram() {
-        vm.saveTelegram(url, key.ifBlank { null }, chat)
     }
 
     Column(
@@ -129,84 +118,15 @@ fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifie
                 )
 
                 2 -> {
-                    LaunchedEffect(s.workerUrl, s.chatId) {
-                        if (s.workerUrl.isNotBlank()) url = s.workerUrl
-                        if (s.chatId.isNotBlank()) chat = s.chatId
-                    }
-                    TelegramGuide(vm)
-                    MessageFormatCard(vm)
                     Text(
-                        "Messages are sent through your Cloudflare Worker to your Telegram bot. The bot token is stored only in the Worker, never in this app.",
+                        "Attendance messages are sent by a GitHub Actions workflow in your own repository, using a Telegram bot you create. You can skip this and finish it later in Settings.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    OutlinedTextField(
-                        value = chat, onValueChange = { chat = it },
-                        label = { Text("Telegram Chat ID") }, singleLine = true, modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = url, onValueChange = { url = it },
-                        label = { Text("Worker URL") },
-                        placeholder = { Text("https://your-worker.workers.dev") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = key, onValueChange = { key = it },
-                        label = { Text(if (s.hasAppKey) "Access key (saved, leave empty to keep)" else "Access key") },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Send attendance automatically", style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                "Test the connection first.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(checked = autoSend, onCheckedChange = { autoSend = it })
-                    }
-                    Button(
-                        onClick = {
-                            if (!telegramReady) {
-                                vm.toast("Enter Chat ID, an https Worker URL and the access key first")
-                            } else {
-                                saveTelegram()
-                                vm.testTelegram()
-                            }
-                        },
-                        enabled = !testing,
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        if (testing) {
-                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
-                        }
-                        Text("Send test message")
-                    }
-                    val statusText = when (s.tgStatus) {
-                        1 -> "Connected ${s.tgBot}".trim()
-                        2 -> "Error: ${s.tgError}"
-                        else -> "Not tested yet"
-                    }
-                    Text(
-                        statusText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = when (s.tgStatus) {
-                            1 -> StatusColors.ok
-                            2 -> StatusColors.error
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
-                    TextButton(onClick = {
-                        autoSend = false
-                        step = 3
-                    }) { Text("Skip Telegram for now") }
+                    GitHubCard(vm)
+                    TelegramCard(vm)
+                    MessageFormatCard(vm)
+                    TextButton(onClick = { step = 3 }) { Text("Skip for now") }
                 }
 
                 else -> {
@@ -244,7 +164,7 @@ fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifie
                         Text(
                             "• Foreground service (location): a short notification while an arrival is verified.\n" +
                                 "• Receive boot completed: restores monitoring after the phone restarts.\n" +
-                                "• Internet: sends the attendance message through your Worker.",
+                                "• Internet: triggers your GitHub Actions workflow, which sends the Telegram message.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -290,8 +210,6 @@ fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifie
                         }
 
                         2 -> {
-                            saveTelegram()
-                            vm.setNotify(autoSend && telegramReady)
                             step = 3
                         }
 

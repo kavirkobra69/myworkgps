@@ -4,8 +4,8 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val appVersionName = "1.1.0"
-val appVersionCode = 2
+val appVersionName = "1.2.0"
+val appVersionCode = 3
 
 android {
     namespace = "ir.mmdkavir.smartattendance"
@@ -69,10 +69,6 @@ android {
         checkReleaseBuilds = false
     }
 
-    sourceSets {
-        getByName("main").assets.srcDir("../worker/src")
-    }
-
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -101,6 +97,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
+    implementation("com.goterl:lazysodium-android:5.1.0@aar")
+    implementation("net.java.dev.jna:jna:5.14.0@aar")
     implementation("org.osmdroid:osmdroid-android:6.1.18")
 
     testImplementation("junit:junit:4.13.2")

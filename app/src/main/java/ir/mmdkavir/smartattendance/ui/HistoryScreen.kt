@@ -86,7 +86,7 @@ fun HistoryScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    ir.mmdkavir.smartattendance.net.Messages.recordDate(r, cfg.dateFormat),
+                                    ir.mmdkavir.smartattendance.net.Payload.recordDate(r, cfg.dateFormat),
                                     style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text(
                                     "Arrival ${r.time}",

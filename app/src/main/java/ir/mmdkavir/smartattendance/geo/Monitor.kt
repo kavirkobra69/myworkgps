@@ -26,6 +26,7 @@ object Monitor {
         Prefs.init(app)
         GeofenceController.unregister(app)
         WatchdogWorker.cancel(app)
+        androidx.work.WorkManager.getInstance(app).cancelUniqueWork("send_outbox")
         app.stopService(Intent(app, VerifyService::class.java))
         Notifier.clear(app, Notifier.ID_PERMISSION)
         Notifier.clear(app, Notifier.ID_GPS)

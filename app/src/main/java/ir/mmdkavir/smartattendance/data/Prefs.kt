@@ -17,8 +17,17 @@ object Keys {
     const val RADIUS = "radius"
     const val DWELL = "dwell_sec"
     const val CHAT = "chat_id"
-    const val URL = "worker_url"
-    const val APPKEY = "app_key"
+    const val OLD_URL = "worker_url"
+    const val OLD_APPKEY = "app_key"
+    const val GH_TOKEN = "gh_token"
+    const val GH_URL = "gh_repo_url"
+    const val GH_OWNER = "gh_owner"
+    const val GH_REPO = "gh_repo"
+    const val GH_BRANCH = "gh_branch"
+    const val GH_LOGIN = "gh_login"
+    const val GH_STATUS = "gh_status"
+    const val GH_ERR = "gh_error"
+    const val SECRETS_OK = "secrets_ok"
     const val NOTIFY = "notify_enabled"
     const val SETUP = "setup_done"
     const val MONITOR = "monitoring"
@@ -47,8 +56,15 @@ data class AppSettings(
     val radius: Int = 100,
     val dwellSec: Int = 10,
     val chatId: String = "",
-    val workerUrl: String = "",
-    val hasAppKey: Boolean = false,
+    val ghRepoUrl: String = "",
+    val ghOwner: String = "",
+    val ghRepo: String = "",
+    val ghBranch: String = "",
+    val ghLogin: String = "",
+    val hasGhToken: Boolean = false,
+    val ghStatus: Int = 0,
+    val ghError: String = "",
+    val secretsOk: Boolean = false,
     val notifyEnabled: Boolean = false,
     val setupDone: Boolean = false,
     val monitoring: Boolean = true,
@@ -65,7 +81,9 @@ data class AppSettings(
     val msgLang: String = "en",
     val dateFormat: String = "gregorian",
     val enterAt: Long = 0L
-)
+) {
+    val ghReady: Boolean get() = hasGhToken && ghOwner.isNotBlank() && ghRepo.isNotBlank() && ghBranch.isNotBlank()
+}
 
 object Prefs {
     private const val FILE = "secure_prefs"
@@ -88,6 +106,7 @@ object Prefs {
             app.deleteSharedPreferences(FILE)
             create(app)
         }
+        sp.edit().remove(Keys.OLD_URL).remove(Keys.OLD_APPKEY).apply()
         sp.registerOnSharedPreferenceChangeListener(listener)
         _state.value = read()
     }
@@ -109,7 +128,7 @@ object Prefs {
         sp.edit().apply(block).apply()
     }
 
-    fun appKey(): String = sp.getString(Keys.APPKEY, "") ?: ""
+    fun ghToken(): String = sp.getString(Keys.GH_TOKEN, "") ?: ""
 
     fun setTg(status: Int, error: String, bot: String? = null) {
         edit {
@@ -129,8 +148,15 @@ object Prefs {
         radius = sp.getInt(Keys.RADIUS, 100),
         dwellSec = sp.getInt(Keys.DWELL, 10),
         chatId = sp.getString(Keys.CHAT, "") ?: "",
-        workerUrl = sp.getString(Keys.URL, "") ?: "",
-        hasAppKey = !sp.getString(Keys.APPKEY, "").isNullOrEmpty(),
+        ghRepoUrl = sp.getString(Keys.GH_URL, "") ?: "",
+        ghOwner = sp.getString(Keys.GH_OWNER, "") ?: "",
+        ghRepo = sp.getString(Keys.GH_REPO, "") ?: "",
+        ghBranch = sp.getString(Keys.GH_BRANCH, "") ?: "",
+        ghLogin = sp.getString(Keys.GH_LOGIN, "") ?: "",
+        hasGhToken = !sp.getString(Keys.GH_TOKEN, "").isNullOrEmpty(),
+        ghStatus = sp.getInt(Keys.GH_STATUS, 0),
+        ghError = sp.getString(Keys.GH_ERR, "") ?: "",
+        secretsOk = sp.getBoolean(Keys.SECRETS_OK, false),
         notifyEnabled = sp.getBoolean(Keys.NOTIFY, false),
         setupDone = sp.getBoolean(Keys.SETUP, false),
         monitoring = sp.getBoolean(Keys.MONITOR, true),

@@ -255,57 +255,11 @@ fun SettingsScreen(
             }
         }
 
-        AppCard {
-            Text("Telegram", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
-            val tgText = when (s.tgStatus) {
-                1 -> if (s.tgBot.isNotBlank()) "Connected (${s.tgBot})" else "Connected"
-                2 -> "Error: ${s.tgError}"
-                else -> "Not tested"
-            }
-            val tgColor = when (s.tgStatus) {
-                1 -> StatusColors.ok
-                2 -> StatusColors.error
-                else -> StatusColors.warn
-            }
-            InfoRow("Connection status", tgText, tgColor)
-            InfoRow("Chat ID", s.chatId.ifBlank { "Not set" })
-            InfoRow("Worker URL", s.workerUrl.ifBlank { "Not set" })
-            InfoRow("Access key", if (s.hasAppKey) "••••••••  (saved)" else "Not set")
-            ToggleRow(
-                "Send attendance to Telegram",
-                "Turn off to keep records only on this phone",
-                s.notifyEnabled
-            ) { on ->
-                if (on && (s.chatId.isBlank() || s.workerUrl.isBlank() || !s.hasAppKey)) {
-                    vm.toast("Enter Chat ID, Worker URL and access key first")
-                } else {
-                    vm.setNotify(on)
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = { dialog = "chat" }, shape = RoundedCornerShape(14.dp)) { Text("Chat ID") }
-                OutlinedButton(onClick = { dialog = "worker" }, shape = RoundedCornerShape(14.dp)) { Text("Worker & key") }
-            }
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = { vm.testTelegram() }, enabled = !testing, shape = RoundedCornerShape(14.dp)) {
-                if (testing) {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text("Send test message")
-            }
-            Text(
-                "The bot token is never stored in this app. It lives only in your Cloudflare Worker secrets.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
+        GitHubCard(vm)
+
+        TelegramCard(vm)
 
         MessageFormatCard(vm)
-
-        TelegramGuide(vm)
 
         AppCard {
             Text("Notifications & battery", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -337,7 +291,7 @@ fun SettingsScreen(
             InfoRow("Version", BuildConfig.VERSION_NAME)
             InfoRow("Maps", "© OpenStreetMap contributors")
             Text(
-                "Attendance data stays on this phone. Only the attendance message is sent, through your own Worker, to your own Telegram chat.",
+                "Attendance data stays on this phone. Only the attendance message is sent, by your own GitHub Actions workflow, to your own Telegram chat.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -359,31 +313,6 @@ fun SettingsScreen(
                 vm.toast("Name and workplace name are required")
             } else {
                 vm.saveProfile(v[0], v[1], v[2])
-                dialog = null
-            }
-        }
-
-        "chat" -> EditDialog(
-            "Telegram Chat ID",
-            listOf(Field("Chat ID", s.chatId, keyboard = KeyboardType.Text, helper = "Numeric ID of the user or group")),
-            onDismiss = { dialog = null }
-        ) { v ->
-            vm.saveTelegram(s.workerUrl, null, v[0])
-            dialog = null
-        }
-
-        "worker" -> EditDialog(
-            "Cloudflare Worker",
-            listOf(
-                Field("Worker URL", s.workerUrl, keyboard = KeyboardType.Uri, helper = "https://your-worker.workers.dev"),
-                Field("Access key", "", secret = true, helper = if (s.hasAppKey) "Leave empty to keep the saved key" else "Same value as the Worker APP_KEY secret")
-            ),
-            onDismiss = { dialog = null }
-        ) { v ->
-            if (!v[0].trim().startsWith("https://")) {
-                vm.toast("Worker URL must start with https://")
-            } else {
-                vm.saveTelegram(v[0], v[1], s.chatId)
                 dialog = null
             }
         }

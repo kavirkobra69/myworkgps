@@ -1,0 +1,118 @@
+name: Attendance
+run-name: Attendance ${{ inputs.event_id }}
+
+# Triggered by the Smart Attendance Android app (workflow_dispatch).
+# Needs two repository secrets: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
+on:
+  workflow_dispatch:
+    inputs:
+      event_id:
+        description: Unique id of this attendance event
+        required: true
+      kind:
+        description: arrival or test
+        required: true
+        default: arrival
+      lang:
+        description: Message language (en or fa)
+        required: true
+        default: en
+      name:
+        description: Full name
+        required: false
+      employee_id:
+        description: Employee ID
+        required: false
+      workplace:
+        description: Workplace name
+        required: false
+      date:
+        description: Date (Gregorian or Jalali, as formatted by the app)
+        required: false
+      time:
+        description: Arrival time
+        required: false
+      lat:
+        description: Latitude
+        required: false
+      lng:
+        description: Longitude
+        required: false
+
+permissions: {}
+
+concurrency:
+  group: attendance-${{ inputs.event_id }}
+  cancel-in-progress: false
+
+jobs:
+  send:
+    name: Send Telegram message
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send message
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          IN_KIND: ${{ inputs.kind }}
+          IN_LANG: ${{ inputs.lang }}
+          IN_NAME: ${{ inputs.name }}
+          IN_EMP: ${{ inputs.employee_id }}
+          IN_PLACE: ${{ inputs.workplace }}
+          IN_DATE: ${{ inputs.date }}
+          IN_TIME: ${{ inputs.time }}
+          IN_LAT: ${{ inputs.lat }}
+          IN_LNG: ${{ inputs.lng }}
+        run: |
+          set -euo pipefail
+          set +x
+          if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
+            echo "::error::Repository secrets TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID are missing. Open the app and press Save Telegram settings."
+            exit 1
+          fi
+          one_line() { printf '%s' "$1" | tr '\r\n' '  '; }
+          NAME="$(one_line "${IN_NAME:-}")"
+          EMP="$(one_line "${IN_EMP:-}")"
+          PLACE="$(one_line "${IN_PLACE:-}")"
+          DATE="$(one_line "${IN_DATE:-}")"
+          TIME="$(one_line "${IN_TIME:-}")"
+          NUM='^-?[0-9]+(\.[0-9]+)?$'
+          if [ "${IN_KIND:-arrival}" = "test" ]; then
+            if [ "${IN_LANG:-en}" = "fa" ]; then
+              TEXT="پیام آزمایشی Smart Attendance"
+              [ -n "$NAME" ] && TEXT="$TEXT"$'\n\n'"نام: $NAME"
+              TEXT="$TEXT"$'\n\n'"اتصال GitHub Actions به تلگرام برقرار است."
+            else
+              TEXT="Smart Attendance test message"
+              [ -n "$NAME" ] && TEXT="$TEXT"$'\n\n'"Name: $NAME"
+              TEXT="$TEXT"$'\n\n'"The GitHub Actions to Telegram connection is working."
+            fi
+          else
+            if ! [[ "${IN_LAT:-}" =~ $NUM ]] || ! [[ "${IN_LNG:-}" =~ $NUM ]]; then
+              echo "::error::Invalid coordinates"
+              exit 1
+            fi
+            LINK="https://www.openstreetmap.org/?mlat=${IN_LAT}&mlon=${IN_LNG}#map=18/${IN_LAT}/${IN_LNG}"
+            if [ "${IN_LANG:-en}" = "fa" ]; then
+              TEXT="حضور در محل کار"$'\n\n'"نام: $NAME"$'\n'
+              [ -n "$EMP" ] && TEXT="${TEXT}شناسه کارمندی: $EMP"$'\n'
+              TEXT="${TEXT}محل کار: $PLACE"$'\n'"تاریخ: $DATE"$'\n'"ساعت ورود: $TIME"$'\n'"موقعیت: $LINK"$'\n\n'"وضعیت: وارد شد"
+            else
+              TEXT="WORK ATTENDANCE"$'\n\n'"Name: $NAME"$'\n'
+              [ -n "$EMP" ] && TEXT="${TEXT}Employee ID: $EMP"$'\n'
+              TEXT="${TEXT}Workplace: $PLACE"$'\n'"Date: $DATE"$'\n'"Arrival Time: $TIME"$'\n'"Location: $LINK"$'\n\n'"Status: ARRIVED"
+            fi
+          fi
+          RESPONSE="$(curl -sS --max-time 30 -X POST \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${CHAT_ID}" \
+            --data-urlencode "text=${TEXT}" \
+            --data-urlencode "disable_web_page_preview=true" || true)"
+          if [ "$(printf '%s' "$RESPONSE" | jq -r '.ok // false' 2>/dev/null || echo false)" = "true" ]; then
+            echo "Message delivered to Telegram."
+          else
+            DESC="$(printf '%s' "$RESPONSE" | jq -r '.description // empty' 2>/dev/null || true)"
+            echo "::error::Telegram did not accept the message: ${DESC:-no valid response (network problem?)}"
+            exit 1
+          fi

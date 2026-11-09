@@ -49,6 +49,12 @@ jobs:
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "Building version $NAME (code $CODE)"
 
+      - name: Test attendance workflow
+        run: |
+          pip install --quiet pyyaml
+          cmp app/src/main/assets/attendance.yml .github/workflows/attendance.yml
+          python3 tools/test-workflow.py app/src/main/assets/attendance.yml
+
       - name: Run unit tests
         run: gradle --no-daemon --stacktrace testDebugUnitTest
 

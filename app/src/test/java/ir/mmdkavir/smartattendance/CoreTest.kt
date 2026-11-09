@@ -2,7 +2,7 @@ package ir.mmdkavir.smartattendance
 
 import ir.mmdkavir.smartattendance.data.AppSettings
 import ir.mmdkavir.smartattendance.data.AttendanceRecord
-import ir.mmdkavir.smartattendance.net.Messages
+import ir.mmdkavir.smartattendance.net.Payload
 import ir.mmdkavir.smartattendance.util.Geo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,21 +35,23 @@ class CoreTest {
     }
 
     @Test
-    fun arrivalMessageUsesConfiguredValues() {
+    fun arrivalPayloadCarriesConfiguredValues() {
         val settings = AppSettings(name = "Kavir", employeeId = "E-42", workplace = "Main Office")
-        val text = Messages.arrival(settings, record)
-        assertTrue(text.startsWith("WORK ATTENDANCE"))
-        assertTrue(text.contains("Name: Kavir"))
-        assertTrue(text.contains("Employee ID: E-42"))
-        assertTrue(text.contains("Workplace: Main Office"))
-        assertTrue(text.contains("Date: 2026-11-07"))
-        assertTrue(text.contains("Arrival Time: 08:32:15"))
-        assertTrue(text.endsWith("Status: ARRIVED"))
+        val p = Payload.arrival(settings, record)
+        assertEquals("arrival", p["kind"])
+        assertEquals("en", p["lang"])
+        assertEquals("Kavir", p["name"])
+        assertEquals("E-42", p["employee_id"])
+        assertEquals("Main Office", p["workplace"])
+        assertEquals("2026-11-07", p["date"])
+        assertEquals("08:32:15", p["time"])
+        assertEquals("35.6892", p["lat"])
+        assertEquals("51.389", p["lng"])
     }
 
     @Test
-    fun employeeIdLineIsOmittedWhenBlank() {
-        val settings = AppSettings(name = "Kavir", employeeId = "")
-        assertFalse(Messages.arrival(settings, record).contains("Employee ID"))
+    fun payloadSurvivesJsonRoundTrip() {
+        val p = Payload.arrival(AppSettings(name = "نام \"x\"", employeeId = ""), record)
+        assertEquals(p, Payload.fromJson(Payload.toJson(p)))
     }
 }

@@ -11,12 +11,11 @@ import ir.mmdkavir.smartattendance.data.Keys
 import ir.mmdkavir.smartattendance.data.Prefs
 import ir.mmdkavir.smartattendance.geo.LocationHelper
 import ir.mmdkavir.smartattendance.geo.Monitor
-import ir.mmdkavir.smartattendance.net.ChatInfo
-import ir.mmdkavir.smartattendance.net.CloudflareDeployer
-import ir.mmdkavir.smartattendance.net.DeployException
 import ir.mmdkavir.smartattendance.net.DiagStep
-import ir.mmdkavir.smartattendance.net.TelegramClient
-import ir.mmdkavir.smartattendance.net.TgResult
+import ir.mmdkavir.smartattendance.net.GhException
+import ir.mmdkavir.smartattendance.net.GitHub
+import ir.mmdkavir.smartattendance.net.Payload
+import ir.mmdkavir.smartattendance.net.RepoRef
 import ir.mmdkavir.smartattendance.update.InstallResult
 import ir.mmdkavir.smartattendance.update.UpdateException
 import ir.mmdkavir.smartattendance.update.UpdateInfo
@@ -41,9 +40,7 @@ data class SetupUi(
     val busy: Boolean = false,
     val progress: String = "",
     val error: String? = null,
-    val success: String? = null,
-    val chats: List<ChatInfo> = emptyList(),
-    val detectNote: String? = null
+    val success: String? = null
 )
 
 data class Device(
@@ -172,16 +169,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         applyMonitoring()
     }
 
-    fun saveTelegram(workerUrl: String, appKey: String?, chatId: String) {
-        Prefs.edit {
-            putString(Keys.URL, workerUrl.trim().trimEnd('/'))
-            putString(Keys.CHAT, chatId.trim())
-            if (!appKey.isNullOrBlank()) putString(Keys.APPKEY, appKey.trim())
-            putInt(Keys.TG_STATUS, 0)
-            putString(Keys.TG_ERR, "")
-        }
-    }
-
     fun setNotify(enabled: Boolean) {
         Prefs.edit { putBoolean(Keys.NOTIFY, enabled) }
         if (enabled) SendWorker.enqueue(getApplication())
@@ -190,7 +177,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setMonitoring(enabled: Boolean) {
         Prefs.edit { putBoolean(Keys.MONITOR, enabled) }
         val c = getApplication<Application>()
-        if (enabled) Monitor.afterSetup(c) else Monitor.stop(c)
+        if (enabled) {
+            Monitor.afterSetup(c)
+            SendWorker.enqueue(c)
+        } else {
+            Monitor.stop(c)
+        }
     }
 
     fun finishSetup() {
@@ -210,126 +202,112 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         Prefs.edit { putString(Keys.DATE_FMT, if (format == "jalali") "jalali" else "gregorian") }
     }
 
-    fun testTelegram() {
+    private fun steps(title: String, list: List<DiagStep>): String {
+        val ok = list.isNotEmpty() && list.all { it.ok }
+        return (if (ok) "Everything works.\n\n" else "Something is not working.\n\n") +
+            list.joinToString("\n\n") { (if (it.ok) "✓ " else "✗ ") + it.title + ": " + it.detail }
+    }
+
+    /** Validates token + repository, installs the workflow and checks the Telegram secrets. */
+    fun connectGitHub(token: String, repoUrl: String) {
+        if (_setup.value.busy) return
+        val saved = Prefs.ghToken()
+        val t = token.trim().ifBlank { saved }
+        if (t.isBlank()) {
+            toast("Enter your GitHub token first")
+            return
+        }
+        viewModelScope.launch {
+            _setup.value = SetupUi(busy = true, progress = "Connecting to GitHub…")
+            val c = getApplication<Application>()
+            try {
+                val conn = withContext(Dispatchers.IO) { GitHub.connect(c, t, repoUrl) }
+                Prefs.edit {
+                    putString(Keys.GH_TOKEN, t)
+                    putString(Keys.GH_URL, "https://github.com/${conn.repo.full}")
+                    putString(Keys.GH_OWNER, conn.repo.owner)
+                    putString(Keys.GH_REPO, conn.repo.name)
+                    putString(Keys.GH_BRANCH, conn.branch)
+                    putString(Keys.GH_LOGIN, conn.login)
+                    putInt(Keys.GH_STATUS, 1)
+                    putString(Keys.GH_ERR, "")
+                    putBoolean(Keys.SECRETS_OK, conn.secretsPresent)
+                }
+                if (Prefs.now().chatId.isNotBlank() && conn.secretsPresent) Prefs.edit { putBoolean(Keys.NOTIFY, true) }
+                _diagnostics.value = steps("GitHub", conn.steps)
+                _setup.value = SetupUi(success = "Connected to ${conn.repo.full}")
+            } catch (e: GitHub.StepsException) {
+                Prefs.edit { putInt(Keys.GH_STATUS, 2); putString(Keys.GH_ERR, e.message ?: "Failed") }
+                _diagnostics.value = steps("GitHub", e.steps)
+                _setup.value = SetupUi(error = e.message)
+            } catch (e: GhException) {
+                Prefs.edit { putInt(Keys.GH_STATUS, 2); putString(Keys.GH_ERR, e.message ?: "Failed") }
+                _setup.value = SetupUi(error = e.message)
+            } catch (e: Exception) {
+                _setup.value = SetupUi(error = "Connection failed (${e.javaClass.simpleName})")
+            }
+        }
+    }
+
+    /** Stores the bot token and chat ID as encrypted GitHub Actions secrets. Neither is kept on the phone except the chat ID. */
+    fun saveTelegramSecrets(botToken: String, chatId: String) {
         val s = Prefs.now()
-        if (s.workerUrl.isBlank() || s.chatId.isBlank() || !s.hasAppKey) {
-            toast("Enter the Worker URL, access key and Chat ID first")
+        if (!s.ghReady || s.ghStatus != 1) {
+            toast("Connect GitHub first")
+            return
+        }
+        val bot = botToken.trim()
+        val chat = chatId.trim()
+        if (!Regex("^\\d{5,}:[A-Za-z0-9_-]{20,}$").matches(bot)) {
+            toast("Bot token format is wrong. It looks like 123456789:AAH...")
+            return
+        }
+        if (!Regex("^-?\\d{1,20}$").matches(chat)) {
+            toast("Chat ID must be a number (a group ID starts with -)")
+            return
+        }
+        if (_setup.value.busy) return
+        viewModelScope.launch {
+            _setup.value = SetupUi(busy = true, progress = "Saving secrets to GitHub…")
+            try {
+                withContext(Dispatchers.IO) { GitHub.storeSecrets(Prefs.ghToken(), RepoRef(s.ghOwner, s.ghRepo), bot, chat) }
+                Prefs.edit {
+                    putString(Keys.CHAT, chat)
+                    putBoolean(Keys.SECRETS_OK, true)
+                    putBoolean(Keys.NOTIFY, true)
+                    putInt(Keys.TG_STATUS, 0)
+                    putString(Keys.TG_ERR, "")
+                }
+                _setup.value = SetupUi(success = "Telegram settings saved in GitHub Secrets. Press Send test message to verify.")
+            } catch (e: GhException) {
+                _setup.value = SetupUi(error = e.message)
+            } catch (e: Exception) {
+                _setup.value = SetupUi(error = "Could not save secrets (${e.javaClass.simpleName})")
+            }
+        }
+    }
+
+    /** Full path test: Android → GitHub API → GitHub Actions → Telegram. */
+    fun sendTest() {
+        val s = Prefs.now()
+        if (!s.ghReady || s.ghStatus != 1 || !s.secretsOk) {
+            toast("Connect GitHub and save the Telegram settings first")
             return
         }
         if (_testing.value) return
         viewModelScope.launch {
             _testing.value = true
-            val key = Prefs.appKey()
-            val steps = withContext(Dispatchers.IO) {
-                val list = TelegramClient.diagnose(s.workerUrl, key, s.chatId).toMutableList()
-                if (list.isNotEmpty() && list.all { it.ok }) {
-                    val sent = TelegramClient.send(
-                        s.workerUrl, key, s.chatId,
-                        ir.mmdkavir.smartattendance.net.Messages.test(s),
-                        "test-" + System.currentTimeMillis()
-                    )
-                    list += if (sent is TgResult.Fail) {
-                        DiagStep("Message delivered", false, sent.message)
-                    } else {
-                        DiagStep("Message delivered", true, "Check your Telegram chat")
-                    }
+            val list = withContext(Dispatchers.IO) {
+                GitHub.sendTest(Prefs.ghToken(), RepoRef(s.ghOwner, s.ghRepo), s.ghBranch, Payload.test(s)) { p ->
+                    _setup.value = SetupUi(busy = true, progress = p)
                 }
-                list
             }
-            val ok = steps.isNotEmpty() && steps.all { it.ok }
-            if (ok) {
-                val bot = Regex("@\\w+").find(steps.firstOrNull { it.title == "Telegram bot" }?.detail.orEmpty())?.value.orEmpty()
-                Prefs.setTg(1, "", bot)
-                if (Prefs.now().notifyEnabled) SendWorker.enqueue(getApplication())
-            } else {
-                Prefs.setTg(2, steps.firstOrNull { !it.ok }?.detail ?: "Connection failed")
-            }
-            _diagnostics.value = (if (ok) "Everything works.\n\n" else "Something is not working.\n\n") +
-                steps.joinToString("\n") { (if (it.ok) "✓ " else "✗ ") + it.title + ": " + it.detail }
+            val ok = list.isNotEmpty() && list.all { it.ok }
+            if (ok) Prefs.setTg(1, "") else Prefs.setTg(2, list.firstOrNull { !it.ok }?.detail ?: "Test failed")
+            _setup.value = SetupUi()
+            _diagnostics.value = steps("Test", list)
             _testing.value = false
         }
-    }
-
-    fun deployWorker(accountId: String, apiToken: String, botToken: String) {
-        if (_setup.value.busy) return
-        viewModelScope.launch {
-            _setup.value = SetupUi(busy = true, progress = "Deploying your Worker to Cloudflare…")
-            val c = getApplication<Application>()
-            val key = CloudflareDeployer.generateKey()
-            try {
-                val (url, steps) = withContext(Dispatchers.IO) {
-                    val deployed = CloudflareDeployer.deploy(c, accountId, apiToken, botToken, key)
-                    Prefs.edit {
-                        putString(Keys.URL, deployed)
-                        putString(Keys.APPKEY, key)
-                        putInt(Keys.TG_STATUS, 0)
-                        putString(Keys.TG_ERR, "")
-                    }
-                    _setup.value = SetupUi(busy = true, progress = "Worker uploaded. Checking that it answers…")
-                    var last: List<DiagStep> = emptyList()
-                    for (attempt in 1..6) {
-                        last = TelegramClient.diagnose(deployed, key, "")
-                        if (last.isNotEmpty() && last.all { it.ok }) break
-                        if (attempt < 6) delay(4000)
-                    }
-                    deployed to last
-                }
-                val ok = steps.isNotEmpty() && steps.all { it.ok }
-                _setup.value = if (ok) {
-                    val bot = steps.firstOrNull { it.title == "Telegram bot" }?.detail.orEmpty()
-                    SetupUi(success = "Your Worker is ready: $url\n$bot")
-                } else {
-                    val failed = steps.firstOrNull { !it.ok }
-                    SetupUi(
-                        success = "Worker deployed at $url",
-                        error = (failed?.let { "${it.title}: ${it.detail}" } ?: "The Worker did not answer yet") +
-                            ". If this network blocks workers.dev, attach a custom domain to the Worker in Cloudflare and enter it under Worker URL."
-                    )
-                }
-            } catch (e: DeployException) {
-                _setup.value = SetupUi(error = e.message ?: "Deployment failed")
-            } catch (e: Exception) {
-                _setup.value = SetupUi(error = "Deployment failed: ${e.javaClass.simpleName}")
-            }
-        }
-    }
-
-    fun detectChats() {
-        val s = Prefs.now()
-        if (s.workerUrl.isBlank() || !s.hasAppKey) {
-            toast("Deploy or enter your Worker first")
-            return
-        }
-        if (_setup.value.busy) return
-        viewModelScope.launch {
-            _setup.value = SetupUi(busy = true, progress = "Looking for your chat…")
-            val (chats, error) = withContext(Dispatchers.IO) { TelegramClient.detectChats(s.workerUrl, Prefs.appKey()) }
-            if (chats.size == 1 && error == null) {
-                Prefs.edit {
-                    putString(Keys.CHAT, chats[0].id)
-                    putInt(Keys.TG_STATUS, 0)
-                }
-            }
-            _setup.value = SetupUi(
-                chats = chats,
-                detectNote = error ?: if (chats.isEmpty()) {
-                    "No messages found yet. Open your bot in Telegram, press Start (or send any message), then try again."
-                } else if (chats.size == 1) {
-                    "Chat ID filled in automatically."
-                } else {
-                    "Choose your chat."
-                }
-            )
-        }
-    }
-
-    fun chooseChat(id: String) {
-        Prefs.edit {
-            putString(Keys.CHAT, id)
-            putInt(Keys.TG_STATUS, 0)
-            putString(Keys.TG_ERR, "")
-        }
-        _setup.value = _setup.value.copy(detectNote = "Chat ID saved.")
     }
 
     fun clearSetupMessage() {

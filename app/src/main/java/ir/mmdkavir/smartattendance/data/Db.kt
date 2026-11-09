@@ -1,6 +1,7 @@
 package ir.mmdkavir.smartattendance.data
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -11,6 +12,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "attendance", indices = [Index(value = ["eventId"], unique = true)])
@@ -36,7 +39,9 @@ data class OutboxItem(
     val eventId: String,
     val text: String,
     val attempts: Int = 0,
-    val createdAt: Long
+    val createdAt: Long,
+    @ColumnInfo(defaultValue = "0") val dispatchedAt: Long = 0,
+    @ColumnInfo(defaultValue = "0") val dispatches: Int = 0
 )
 
 @Dao
@@ -77,11 +82,17 @@ interface OutboxDao {
     @Query("UPDATE outbox SET attempts = attempts + 1 WHERE id = :id")
     suspend fun bump(id: Long)
 
+    @Query("UPDATE outbox SET dispatchedAt = :time, dispatches = dispatches + 1, attempts = 0 WHERE id = :id")
+    suspend fun markDispatched(id: Long, time: Long)
+
+    @Query("UPDATE outbox SET dispatchedAt = 0, attempts = 0 WHERE id = :id")
+    suspend fun resetDispatch(id: Long)
+
     @Query("SELECT COUNT(*) FROM outbox")
     fun observeCount(): Flow<Int>
 }
 
-@Database(entities = [AttendanceRecord::class, OutboxItem::class], version = 1, exportSchema = false)
+@Database(entities = [AttendanceRecord::class, OutboxItem::class], version = 2, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun attendance(): AttendanceDao
     abstract fun outbox(): OutboxDao
@@ -90,13 +101,22 @@ abstract class AppDb : RoomDatabase() {
         @Volatile
         private var instance: AppDb? = null
 
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Queued messages used the removed Worker format and cannot be delivered any more.
+                db.execSQL("DELETE FROM outbox")
+                db.execSQL("ALTER TABLE outbox ADD COLUMN dispatchedAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE outbox ADD COLUMN dispatches INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun get(context: Context): AppDb =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDb::class.java,
                     "attendance.db"
-                ).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
             }
     }
 }

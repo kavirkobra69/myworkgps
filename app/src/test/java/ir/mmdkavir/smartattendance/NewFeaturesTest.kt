@@ -2,8 +2,8 @@ package ir.mmdkavir.smartattendance
 
 import ir.mmdkavir.smartattendance.data.AppSettings
 import ir.mmdkavir.smartattendance.data.AttendanceRecord
-import ir.mmdkavir.smartattendance.net.CloudflareDeployer
-import ir.mmdkavir.smartattendance.net.Messages
+import ir.mmdkavir.smartattendance.net.Payload
+import ir.mmdkavir.smartattendance.net.RepoRef
 import ir.mmdkavir.smartattendance.update.Updater
 import ir.mmdkavir.smartattendance.util.Fmt
 import org.junit.Assert.assertEquals
@@ -27,29 +27,42 @@ class NewFeaturesTest {
     }
 
     @Test
-    fun englishMessageFormat() {
-        val s = AppSettings(name = "MmdKavir", employeeId = "85", workplace = "Mmd")
-        val t = Messages.arrival(s, record)
-        assertTrue(t.startsWith("WORK ATTENDANCE\n\nName: MmdKavir\nEmployee ID: 85\nWorkplace: Mmd\nDate: "))
-        assertTrue(t.contains("Arrival Time: 01:50:43"))
-        assertTrue(t.contains("Location: https://www.openstreetmap.org/?mlat=31.9000284&mlon=54.35826#map=18/31.9000284/54.35826"))
-        assertTrue(t.endsWith("\n\nStatus: ARRIVED"))
-    }
-
-    @Test
-    fun persianMessageKeepsNumbers() {
+    fun persianPayloadKeepsNumbers() {
         val s = AppSettings(name = "MmdKavir", employeeId = "85", workplace = "Mmd", msgLang = "fa")
-        val t = Messages.arrival(s, record)
-        assertFalse(t.contains("WORK ATTENDANCE"))
-        assertTrue(t.contains("85"))
-        assertTrue(t.contains("01:50:43"))
-        assertTrue(t.contains("mlat=31.9000284"))
+        val p = Payload.arrival(s, record)
+        assertEquals("fa", p["lang"])
+        assertEquals("85", p["employee_id"])
+        assertEquals("01:50:43", p["time"])
+        assertEquals("31.9000284", p["lat"])
+        assertEquals("54.35826", p["lng"])
     }
 
     @Test
-    fun jalaliDateInMessage() {
+    fun jalaliDateInPayload() {
         val s = AppSettings(name = "a", workplace = "b", dateFormat = "jalali")
-        assertTrue(Messages.arrival(s, record).contains("Date: 1405-08-18"))
+        assertEquals("1405-08-18", Payload.arrival(s, record)["date"])
+        assertEquals("2026-11-09", Payload.arrival(AppSettings(name = "a"), record)["date"])
+    }
+
+    @Test
+    fun coordinatesNeverUseScientificNotation() {
+        assertEquals("0.00001", Payload.coord(0.00001))
+        assertEquals("31.9000284", Payload.coord(31.9000284))
+        assertEquals("-12.5", Payload.coord(-12.5))
+    }
+
+    @Test
+    fun repositoryUrlParsing() {
+        val want = RepoRef("kavirkobra69", "myworkgps")
+        assertEquals(want, RepoRef.parse("https://github.com/kavirkobra69/myworkgps"))
+        assertEquals(want, RepoRef.parse("https://github.com/kavirkobra69/myworkgps.git"))
+        assertEquals(want, RepoRef.parse("github.com/kavirkobra69/myworkgps/tree/main"))
+        assertEquals(want, RepoRef.parse("git@github.com:kavirkobra69/myworkgps.git"))
+        assertEquals(want, RepoRef.parse(" kavirkobra69/myworkgps "))
+        assertNull(RepoRef.parse("https://github.com/onlyowner"))
+        assertNull(RepoRef.parse("https://example.com/a/b/../.."))
+        assertNull(RepoRef.parse("owner/bad name"))
+        assertNull(RepoRef.parse(""))
     }
 
     @Test
@@ -70,13 +83,5 @@ class NewFeaturesTest {
         assertEquals("1.1.0", info?.version)
         assertEquals("notes", info?.notes)
         assertNull(Updater.pickLatest("[]"))
-    }
-
-    @Test
-    fun deployerValidation() {
-        assertTrue(CloudflareDeployer.validAccountId("0123456789abcdef0123456789abcdef"))
-        assertFalse(CloudflareDeployer.validAccountId("short"))
-        assertTrue(CloudflareDeployer.validBotToken("123456:ABCdefGhIJKlmNoPQRsTUVwxyZ_12345"))
-        assertFalse(CloudflareDeployer.validBotToken("nope"))
     }
 }

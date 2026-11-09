@@ -49,7 +49,7 @@ class NewFeaturesTest {
     @Test
     fun jalaliDateInMessage() {
         val s = AppSettings(name = "a", workplace = "b", dateFormat = "jalali")
-        assertTrue(Messages.arrival(s, record).contains("1405"))
+        assertTrue(Messages.arrival(s, record).contains("Date: 1405-08-18"))
     }
 
     @Test

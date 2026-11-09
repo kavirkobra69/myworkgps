@@ -31,13 +31,16 @@ object Messages {
     private fun link(r: AttendanceRecord) =
         "https://www.openstreetmap.org/?mlat=${r.lat}&mlon=${r.lng}#map=18/${r.lat}/${r.lng}"
 
+    internal fun recordDate(r: AttendanceRecord, format: String): String {
+        if (format != "jalali") return r.date
+        val p = r.date.split("-").mapNotNull { it.toIntOrNull() }
+        if (p.size != 3) return r.date
+        val (y, m, d) = ir.mmdkavir.smartattendance.util.Fmt.gregorianToJalali(p[0], p[1], p[2])
+        return "%04d-%02d-%02d".format(y, m, d)
+    }
+
     fun arrival(s: AppSettings, r: AttendanceRecord): String {
-        val zone = try {
-            java.time.ZoneId.of(r.zoneId)
-        } catch (e: Exception) {
-            java.time.ZoneId.systemDefault()
-        }
-        val date = ir.mmdkavir.smartattendance.util.Fmt.dateStyled(r.arrivalMillis, s.dateFormat, zone)
+        val date = recordDate(r, s.dateFormat)
         return if (s.msgLang == "fa") {
             buildString {
                 append("حضور در محل کار\n\n")

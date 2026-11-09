@@ -25,6 +25,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -128,6 +129,12 @@ fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifie
                 )
 
                 2 -> {
+                    LaunchedEffect(s.workerUrl, s.chatId) {
+                        if (s.workerUrl.isNotBlank()) url = s.workerUrl
+                        if (s.chatId.isNotBlank()) chat = s.chatId
+                    }
+                    TelegramGuide(vm)
+                    MessageFormatCard(vm)
                     Text(
                         "Messages are sent through your Cloudflare Worker to your Telegram bot. The bot token is stored only in the Worker, never in this app.",
                         style = MaterialTheme.typography.bodyMedium,

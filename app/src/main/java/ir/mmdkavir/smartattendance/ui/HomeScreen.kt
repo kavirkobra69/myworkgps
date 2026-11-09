@@ -203,7 +203,7 @@ fun HomeScreen(
                 if (todayRecord != null) "Arrived at ${todayRecord.time}" else "No arrival yet",
                 if (todayRecord != null) StatusColors.ok else Color.Unspecified
             )
-            InfoRow("Last arrival", if (s.lastArrival > 0) Fmt.dateTime(s.lastArrival) else "—")
+            InfoRow("Last arrival", if (s.lastArrival > 0) Fmt.dateTimeStyled(s.lastArrival, s.dateFormat) else "—")
             InfoRow("Geofence", "${s.radius} m radius")
             if (distance != null) {
                 InfoRow("Distance to workplace", if (distance >= 1000) "%.1f km".format(distance / 1000) else "${distance.toInt()} m")

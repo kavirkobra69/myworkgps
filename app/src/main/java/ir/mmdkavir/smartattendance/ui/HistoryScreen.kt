@@ -32,6 +32,7 @@ import ir.mmdkavir.smartattendance.util.Fmt
 @Composable
 fun HistoryScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
     val records by vm.records.collectAsState()
+    val cfg by vm.settings.collectAsState()
     val context = LocalContext.current
 
     Column(modifier.fillMaxSize()) {
@@ -84,7 +85,9 @@ fun HistoryScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                     AppCard {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(r.date, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(
+                                    runCatching { ir.mmdkavir.smartattendance.util.Fmt.dateStyled(r.arrivalMillis, cfg.dateFormat, java.time.ZoneId.of(r.zoneId)) }.getOrDefault(r.date),
+                                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text(
                                     "Arrival ${r.time}",
                                     style = MaterialTheme.typography.bodyLarge,

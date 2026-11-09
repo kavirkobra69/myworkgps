@@ -107,6 +107,19 @@ function describeTelegramFailure(result, env) {
   return fail(400, `Telegram: ${description}`);
 }
 
+function validChatId(chatId) {
+  return /^-?\d{1,20}$/.test(chatId) || /^@[A-Za-z][A-Za-z0-9_]{4,31}$/.test(chatId);
+}
+
+function chatName(chat) {
+  return (
+    chat.title ||
+    [chat.first_name, chat.last_name].filter(Boolean).join(" ") ||
+    chat.username ||
+    ""
+  );
+}
+
 function allowedChat(env, chatId) {
   const list = (env.ALLOWED_CHAT_IDS || "")
     .split(",")
@@ -115,10 +128,41 @@ function allowedChat(env, chatId) {
   return list.length === 0 || list.includes(String(chatId));
 }
 
-async function handleHealth(env) {
+async function handleHealth(env, url) {
   const result = await telegram(env, "getMe", {});
   if (!result.data?.ok) return describeTelegramFailure(result, env);
-  return reply({ ok: true, bot: result.data.result?.username || "" });
+  const out = { ok: true, bot: result.data.result?.username || "" };
+
+  const chatId = (url.searchParams.get("chat_id") || "").trim();
+  if (chatId) {
+    if (!validChatId(chatId)) {
+      out.chat = { ok: false, error: "Invalid chat_id" };
+    } else if (!allowedChat(env, chatId)) {
+      out.chat = { ok: false, error: "Chat ID is not allowed by this Worker" };
+    } else {
+      const chat = await telegram(env, "getChat", { chat_id: chatId });
+      out.chat = chat.data?.ok
+        ? { ok: true, name: chatName(chat.data.result) }
+        : { ok: false, error: redact(chat.data?.description || `HTTP ${chat.status}`, env) };
+    }
+  }
+  return reply(out);
+}
+
+async function handleDetect(env) {
+  const result = await telegram(env, "getUpdates", { limit: 50, timeout: 0 });
+  if (!result.data?.ok) return describeTelegramFailure(result, env);
+  const seen = new Map();
+  for (const update of [...(result.data.result || [])].reverse()) {
+    const chat =
+      update.message?.chat ||
+      update.edited_message?.chat ||
+      update.channel_post?.chat ||
+      update.my_chat_member?.chat;
+    if (!chat || seen.has(chat.id) || !allowedChat(env, chat.id)) continue;
+    seen.set(chat.id, { id: String(chat.id), type: chat.type, name: chatName(chat) });
+  }
+  return reply({ ok: true, chats: [...seen.values()] });
 }
 
 async function handleSend(request, env) {
@@ -136,9 +180,7 @@ async function handleSend(request, env) {
   const text = typeof body.text === "string" ? body.text : "";
   const eventId = body.event_id == null ? "" : String(body.event_id);
 
-  if (!/^-?\d{1,20}$/.test(chatId) && !/^@[A-Za-z][A-Za-z0-9_]{4,31}$/.test(chatId)) {
-    return fail(400, "Invalid chat_id");
-  }
+  if (!validChatId(chatId)) return fail(400, "Invalid chat_id");
   if (!text.trim() || text.length > MAX_TEXT_LENGTH) return fail(400, "Invalid text");
   if (eventId && !/^[A-Za-z0-9_.:-]{1,64}$/.test(eventId)) return fail(400, "Invalid event_id");
   if (!allowedChat(env, chatId)) return fail(403, "Chat ID is not allowed");
@@ -171,8 +213,9 @@ export default {
       }
 
       const isHealth = path === "/health" && request.method === "GET";
+      const isDetect = path === "/detect" && request.method === "GET";
       const isSend = path === "/send" && request.method === "POST";
-      if (!isHealth && !isSend) return fail(404, "Not found");
+      if (!isHealth && !isDetect && !isSend) return fail(404, "Not found");
 
       if (!env.BOT_TOKEN || !env.APP_KEY) return fail(500, "Worker is not configured");
 
@@ -189,7 +232,9 @@ export default {
         return fail(401, "Unauthorized");
       }
 
-      return isHealth ? await handleHealth(env) : await handleSend(request, env);
+      if (isHealth) return await handleHealth(env, url);
+      if (isDetect) return await handleDetect(env);
+      return await handleSend(request, env);
     } catch (error) {
       console.log(JSON.stringify({ event: "error", message: redact(error?.message, env) }));
       return fail(502, "Relay error");

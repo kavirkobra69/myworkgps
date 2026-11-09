@@ -219,7 +219,14 @@ fun SettingsScreen(
                 "Automatic attendance",
                 "Detect arrival in the background",
                 s.monitoring
-            ) { vm.setMonitoring(it) }
+            ) { on ->
+                vm.setMonitoring(on)
+                if (on) {
+                    if (!d.fine) actions.requestBasic()
+                    else if (!d.background) actions.requestBackground()
+                    else if (!batteryOk) actions.openBatterySettings()
+                }
+            }
             InfoRow("GPS (location services)", if (d.gpsOn) "On" else "Off", if (d.gpsOn) StatusColors.ok else StatusColors.error)
             InfoRow("Precise location", if (d.fine) "Granted" else "Missing", if (d.fine) StatusColors.ok else StatusColors.error)
             InfoRow(
@@ -296,6 +303,10 @@ fun SettingsScreen(
             )
         }
 
+        MessageFormatCard(vm)
+
+        TelegramGuide(vm)
+
         AppCard {
             Text("Notifications & battery", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
@@ -317,6 +328,8 @@ fun SettingsScreen(
             Spacer(Modifier.height(4.dp))
             TextButton(onClick = { dialog = "guide" }) { Text("Battery optimization & recovery guide") }
         }
+
+        UpdateCard(vm)
 
         AppCard {
             Text("About", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

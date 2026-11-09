@@ -105,6 +105,7 @@ jobs:
           "$APKSIGNER" verify --verbose "$SRC"
           OUT="SmartAttendance-v${{ steps.ver.outputs.name }}.apk"
           cp "$SRC" "$OUT"
+          sha256sum "$OUT" | cut -d' ' -f1 > "$OUT.sha256"
           echo "file=$OUT" >> "$GITHUB_OUTPUT"
           ls -lh "$OUT"
 
@@ -123,7 +124,10 @@ jobs:
           target_commitish: ${{ github.sha }}
           prerelease: ${{ steps.sign.outputs.mode != 'secrets' }}
           fail_on_unmatched_files: true
-          files: ${{ steps.apk.outputs.file }}
+          generate_release_notes: true
+          files: |
+            ${{ steps.apk.outputs.file }}
+            ${{ steps.apk.outputs.file }}.sha256
           body: |
             Smart Attendance v${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }})
 

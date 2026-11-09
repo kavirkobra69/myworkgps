@@ -11,13 +11,14 @@ import ir.mmdkavir.smartattendance.net.Messages
 import ir.mmdkavir.smartattendance.util.Fmt
 import ir.mmdkavir.smartattendance.util.Geo
 import ir.mmdkavir.smartattendance.work.SendWorker
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.ZoneId
 
 object AttendanceEngine {
     private val mutex = Mutex()
-    private const val REENTRY_COOLDOWN_MS = 120_000L
+    private const val REENTRY_COOLDOWN_MS = 60_000L
     private const val GOOD_ACCURACY_M = 100f
     private const val MAX_USABLE_ACCURACY_M = 150f
     private const val SANE_WINDOW_MS = 15 * 60_000L
@@ -30,7 +31,7 @@ object AttendanceEngine {
         Prefs.init(app)
         mutex.withLock {
             val s = Prefs.now()
-            if (!s.setupDone || !s.hasLocation || s.inVisit) return
+            if (!s.setupDone || !s.hasLocation || !s.monitoring || s.inVisit) return
             val now = System.currentTimeMillis()
             if (s.lastExit > 0 && now - s.lastExit < REENTRY_COOLDOWN_MS) return
 
@@ -146,9 +147,20 @@ object AttendanceEngine {
         val d = Geo.distanceMeters(fix.latitude, fix.longitude, s.lat, s.lng)
         val current = Prefs.now()
         if (d <= s.radius && !current.inVisit) {
+            if (!stayedInside(app, s, fix.time)) return
             onEntry(app, fix.time, fix)
         } else if (current.inVisit && d - fix.accuracy > s.radius * 1.2) {
             onExit(app, fix.time)
         }
+    }
+
+    private suspend fun stayedInside(app: Context, s: ir.mmdkavir.smartattendance.data.AppSettings, firstTime: Long): Boolean {
+        if (s.dwellSec <= 0) return true
+        delay(s.dwellSec * 1000L)
+        if (!Prefs.now().monitoring) return false
+        val second = LocationHelper.currentFix(app, 20_000L) ?: return false
+        if (second.accuracy > MAX_USABLE_ACCURACY_M || second.time < firstTime) return false
+        val d = Geo.distanceMeters(second.latitude, second.longitude, s.lat, s.lng)
+        return d - second.accuracy <= s.radius
     }
 }

@@ -10,6 +10,8 @@ import ir.mmdkavir.smartattendance.data.Prefs
 class GeofenceReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         Prefs.init(context)
+        val state = Prefs.now()
+        if (!state.setupDone || !state.monitoring) return
         val event = GeofencingEvent.fromIntent(intent) ?: return
         if (event.hasError()) {
             Prefs.edit {

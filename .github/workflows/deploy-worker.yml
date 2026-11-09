@@ -35,6 +35,9 @@ jobs:
       - name: Syntax check
         run: node --check worker/src/index.js
 
+      - name: Worker tests
+        run: node worker/test.mjs
+
       - name: Deploy Worker and set secrets
         uses: cloudflare/wrangler-action@v3
         with:

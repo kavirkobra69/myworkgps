@@ -41,7 +41,9 @@ class WatchdogWorker(context: Context, params: WorkerParameters) : CoroutineWork
         }
 
         fun cancel(context: Context) {
-            WorkManager.getInstance(context.applicationContext).cancelUniqueWork("watchdog")
+            val wm = WorkManager.getInstance(context.applicationContext)
+            wm.cancelUniqueWork("watchdog")
+            wm.cancelUniqueWork("watchdog_now")
         }
     }
 }

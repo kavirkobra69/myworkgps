@@ -10,6 +10,7 @@ import android.os.IBinder
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import com.google.android.gms.location.Geofence
+import ir.mmdkavir.smartattendance.data.Keys
 import ir.mmdkavir.smartattendance.data.Prefs
 import ir.mmdkavir.smartattendance.work.WatchdogWorker
 import kotlinx.coroutines.CoroutineScope
@@ -58,15 +59,29 @@ class VerifyService : Service() {
 
     private suspend fun handle(type: Int, time: Long, loc: Location?) {
         val s = Prefs.now()
+        if (!s.setupDone || !s.monitoring) return
         when (type) {
-            Geofence.GEOFENCE_TRANSITION_DWELL ->
-                AttendanceEngine.onEntry(applicationContext, time - s.dwellSec * 1000L, loc)
-
             Geofence.GEOFENCE_TRANSITION_ENTER ->
-                if (s.dwellSec == 0) AttendanceEngine.onEntry(applicationContext, time, loc)
+                if (s.dwellSec == 0) {
+                    AttendanceEngine.onEntry(applicationContext, time, loc)
+                } else if (!s.inVisit) {
+                    Prefs.edit { putLong(Keys.ENTER_AT, time) }
+                }
 
-            Geofence.GEOFENCE_TRANSITION_EXIT ->
+            Geofence.GEOFENCE_TRANSITION_DWELL -> {
+                val entered = if (s.enterAt > 0 && time - s.enterAt in 0L..SANE_ENTER_WINDOW_MS) {
+                    s.enterAt
+                } else {
+                    time - s.dwellSec * 1000L
+                }
+                AttendanceEngine.onEntry(applicationContext, entered, loc)
+                Prefs.edit { putLong(Keys.ENTER_AT, 0L) }
+            }
+
+            Geofence.GEOFENCE_TRANSITION_EXIT -> {
+                Prefs.edit { putLong(Keys.ENTER_AT, 0L) }
                 AttendanceEngine.onExit(applicationContext, time)
+            }
         }
     }
 
@@ -79,6 +94,7 @@ class VerifyService : Service() {
         private const val EXTRA_TYPE = "type"
         private const val EXTRA_TIME = "time"
         private const val EXTRA_LOC = "loc"
+        private const val SANE_ENTER_WINDOW_MS = 15 * 60_000L
 
         fun start(context: Context, type: Int, time: Long, loc: Location?) {
             val intent = Intent(context, VerifyService::class.java)

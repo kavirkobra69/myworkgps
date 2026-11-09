@@ -64,6 +64,7 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
     val settings by vm.settings.collectAsState()
     val message by vm.message.collectAsState()
     val snackbar = remember { SnackbarHostState() }
+    DiagnosticsDialog(vm)
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
     fun notificationsGranted(): Boolean =
@@ -126,9 +127,16 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
             openAppSettings = { launchSettings(appDetails()) },
             openBatterySettings = {
                 try {
-                    context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    context.startActivity(
+                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                            .setData(Uri.parse("package:" + context.packageName))
+                    )
                 } catch (e: Exception) {
-                    launchSettings(appDetails())
+                    try {
+                        context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    } catch (e2: Exception) {
+                        launchSettings(appDetails())
+                    }
                 }
             },
             openNotificationSettings = {

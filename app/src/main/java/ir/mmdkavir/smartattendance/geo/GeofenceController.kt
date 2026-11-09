@@ -76,7 +76,7 @@ object GeofenceController {
             .setCircularRegion(s.lat, s.lng, s.radius.toFloat())
             .setExpirationDuration(Geofence.NEVER_EXPIRE)
             .setTransitionTypes(transitions)
-            .setNotificationResponsiveness(30_000)
+            .setNotificationResponsiveness(5_000)
         if (s.dwellSec > 0) builder.setLoiteringDelay(s.dwellSec * 1000)
 
         val request = GeofencingRequest.Builder()

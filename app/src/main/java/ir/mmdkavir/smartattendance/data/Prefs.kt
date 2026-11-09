@@ -32,6 +32,9 @@ object Keys {
     const val GEO_ERR = "geo_error"
     const val GEO_SIG = "geo_sig"
     const val GPS_OFF = "gps_off_seen"
+    const val MSG_LANG = "msg_lang"
+    const val DATE_FMT = "date_format"
+    const val ENTER_AT = "enter_at"
 }
 
 data class AppSettings(
@@ -42,7 +45,7 @@ data class AppSettings(
     val lat: Double = 0.0,
     val lng: Double = 0.0,
     val radius: Int = 100,
-    val dwellSec: Int = 30,
+    val dwellSec: Int = 10,
     val chatId: String = "",
     val workerUrl: String = "",
     val hasAppKey: Boolean = false,
@@ -58,7 +61,10 @@ data class AppSettings(
     val geoOk: Boolean = false,
     val geoError: String = "",
     val geoSig: String = "",
-    val gpsOffSeen: Boolean = false
+    val gpsOffSeen: Boolean = false,
+    val msgLang: String = "en",
+    val dateFormat: String = "gregorian",
+    val enterAt: Long = 0L
 )
 
 object Prefs {
@@ -121,7 +127,7 @@ object Prefs {
         lat = Double.fromBits(sp.getLong(Keys.LAT, 0L)),
         lng = Double.fromBits(sp.getLong(Keys.LNG, 0L)),
         radius = sp.getInt(Keys.RADIUS, 100),
-        dwellSec = sp.getInt(Keys.DWELL, 30),
+        dwellSec = sp.getInt(Keys.DWELL, 10),
         chatId = sp.getString(Keys.CHAT, "") ?: "",
         workerUrl = sp.getString(Keys.URL, "") ?: "",
         hasAppKey = !sp.getString(Keys.APPKEY, "").isNullOrEmpty(),
@@ -137,6 +143,9 @@ object Prefs {
         geoOk = sp.getBoolean(Keys.GEO_OK, false),
         geoError = sp.getString(Keys.GEO_ERR, "") ?: "",
         geoSig = sp.getString(Keys.GEO_SIG, "") ?: "",
-        gpsOffSeen = sp.getBoolean(Keys.GPS_OFF, false)
+        gpsOffSeen = sp.getBoolean(Keys.GPS_OFF, false),
+        msgLang = sp.getString(Keys.MSG_LANG, "en") ?: "en",
+        dateFormat = sp.getString(Keys.DATE_FMT, "gregorian") ?: "gregorian",
+        enterAt = sp.getLong(Keys.ENTER_AT, 0L)
     )
 }

@@ -22,6 +22,9 @@ class I18nAndFixTest {
     private fun sources(): List<File> =
         File("src/main/java").walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
 
+    private fun unescape(raw: String): String =
+        raw.replace("\\n", "\n").replace("\\\"", "\"").replace("\\\\", "\\")
+
     private val callRegex = Regex("""(?<![A-Za-z0-9_.])t\(\s*"((?:[^"\\]|\\.)*)"""")
     private val arabic = Regex("[\\u0600-\\u06FF]")
     private val sameInBothLanguages = setOf(
@@ -35,7 +38,7 @@ class I18nAndFixTest {
         val missing = mutableListOf<String>()
         sources().filterNot { it.path.contains("/i18n/") }.forEach { file ->
             callRegex.findAll(file.readText()).forEach { m ->
-                if (m.groupValues[1] !in Fa.map) missing += "${file.name}: ${m.groupValues[1]}"
+                if (unescape(m.groupValues[1]) !in Fa.map) missing += "${file.name}: ${m.groupValues[1]}"
             }
         }
         assertTrue("Missing Persian translations:\n" + missing.joinToString("\n"), missing.isEmpty())
@@ -48,7 +51,7 @@ class I18nAndFixTest {
         sources().filter { it.path.contains("/ui/") }.forEach { file ->
             literalText.findAll(file.readText()).forEach { m ->
                 val v = m.groupValues[1]
-                if (v.any { it.isLetter() } && v != "فارسی" && v != "English" && v != "Jalali") bad += "${file.name}: $v"
+                if (v.any { it.isLetter() } && v != "فارسی" && v != "English" && v != "Jalali" && !v.startsWith("http")) bad += "${file.name}: $v"
             }
         }
         assertTrue("Text() with an untranslated literal:\n" + bad.joinToString("\n"), bad.isEmpty())

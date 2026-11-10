@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.ui
 
+import ir.mmdkavir.smartattendance.i18n.t
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -47,21 +48,40 @@ import ir.mmdkavir.smartattendance.update.Updater
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun AppLanguageCard(vm: MainViewModel) {
+    val s by vm.settings.collectAsState()
+    AppCard {
+        Text(t("App language"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            t("Choose the language of the whole app."),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = s.appLang == "fa", onClick = { vm.setAppLang("fa") }, label = { Text("فارسی") })
+            FilterChip(selected = s.appLang == "en", onClick = { vm.setAppLang("en") }, label = { Text("English") })
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun MessageFormatCard(vm: MainViewModel) {
     val s by vm.settings.collectAsState()
     AppCard {
-        Text("Telegram message format", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(t("Telegram message format"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
-        Text("Message language", style = MaterialTheme.typography.bodyMedium)
+        Text(t("Message language"), style = MaterialTheme.typography.bodyMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = s.msgLang == "en", onClick = { vm.setMsgLang("en") }, label = { Text("English") })
             FilterChip(selected = s.msgLang == "fa", onClick = { vm.setMsgLang("fa") }, label = { Text("فارسی") })
         }
         Spacer(Modifier.height(8.dp))
-        Text("Date format", style = MaterialTheme.typography.bodyMedium)
+        Text(t("Date format"), style = MaterialTheme.typography.bodyMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = s.dateFormat == "gregorian", onClick = { vm.setDateFormat("gregorian") }, label = { Text("Gregorian") })
-            FilterChip(selected = s.dateFormat == "jalali", onClick = { vm.setDateFormat("jalali") }, label = { Text("Jalali (شمسی)") })
+            FilterChip(selected = s.dateFormat == "gregorian", onClick = { vm.setDateFormat("gregorian") }, label = { Text(t("Gregorian")) })
+            FilterChip(selected = s.dateFormat == "jalali", onClick = { vm.setDateFormat("jalali") }, label = { Text(t("Jalali")) })
         }
     }
 }
@@ -90,11 +110,9 @@ fun GitHubCard(vm: MainViewModel) {
     var url by remember(s.ghRepoUrl) { mutableStateOf(s.ghRepoUrl) }
 
     AppCard {
-        Text("GitHub connection", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(t("GitHub connection"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(
-            "Attendance messages are sent by a GitHub Actions workflow in your repository. Create a fine-grained Personal Access Token " +
-                "limited to that repository with these permissions: Actions (read/write), Contents (read/write), Workflows (read/write), " +
-                "Secrets (read/write), Metadata (read). A classic token needs the repo and workflow scopes. The token is stored encrypted on this phone.",
+            t("Attendance messages are sent by a GitHub Actions workflow in your repository. Create a fine-grained Personal Access Token limited to that repository with these permissions: Actions (read/write), Contents (read/write), Workflows (read/write), Secrets (read/write), Metadata (read). A classic token needs the repo and workflow scopes. The token is stored encrypted on this phone."),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -102,12 +120,12 @@ fun GitHubCard(vm: MainViewModel) {
             try {
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/settings/personal-access-tokens/new")))
             } catch (e: Exception) {
-                vm.toast("No browser found")
+                vm.toast(t("No browser found"))
             }
-        }) { Text("Create a token on GitHub") }
+        }) { Text(t("Create a token on GitHub")) }
         OutlinedTextField(
             value = token, onValueChange = { token = it.trim() },
-            label = { Text(if (s.hasGhToken) "Personal Access Token (saved, leave empty to keep)" else "Personal Access Token") },
+            label = { Text(if (s.hasGhToken) t("Personal Access Token (saved, leave empty to keep)") else t("Personal Access Token")) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -115,7 +133,7 @@ fun GitHubCard(vm: MainViewModel) {
         )
         OutlinedTextField(
             value = url, onValueChange = { url = it },
-            label = { Text("Repository URL") },
+            label = { Text(t("Repository URL")) },
             placeholder = { Text("https://github.com/owner/repository") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -126,16 +144,16 @@ fun GitHubCard(vm: MainViewModel) {
             onClick = { vm.connectGitHub(token, url) },
             enabled = !st.busy && url.isNotBlank() && (token.isNotBlank() || s.hasGhToken),
             shape = RoundedCornerShape(14.dp)
-        ) { Text("Connect / Test connection") }
+        ) { Text(t("Connect / Test connection")) }
         val color = when (s.ghStatus) {
             1 -> StatusColors.ok
             2 -> StatusColors.error
             else -> StatusColors.warn
         }
         val text = when (s.ghStatus) {
-            1 -> "Connected: ${s.ghOwner}/${s.ghRepo} (branch ${s.ghBranch}) as ${s.ghLogin}"
-            2 -> "Error: ${s.ghError}"
-            else -> "Not connected"
+            1 -> t("Connected: %s/%s (branch %s) as %s", s.ghOwner, s.ghRepo, s.ghBranch, s.ghLogin)
+            2 -> t("Error: %s", s.ghError)
+            else -> t("Not connected")
         }
         Spacer(Modifier.height(4.dp))
         Text(text, style = MaterialTheme.typography.bodySmall, color = color)
@@ -157,34 +175,31 @@ fun TelegramCard(vm: MainViewModel) {
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)))
         } catch (e: Exception) {
-            vm.toast("No browser found")
+            vm.toast(t("No browser found"))
         }
     }
 
     AppCard {
-        Text("Telegram", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(t("Telegram"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(
-            "1. Create your own bot with @BotFather and copy its token.\n" +
-                "2. Open your bot and press Start.\n" +
-                "3. Get your numeric Chat ID from @userinfobot (for a group, add the bot to the group and use the group's negative ID).\n" +
-                "The token is sent straight to GitHub Secrets (encrypted) and is not kept in this app or in the repository.",
+            t("1. Create your own bot with @BotFather and copy its token.\n2. Open your bot and press Start.\n3. Get your numeric Chat ID from @userinfobot (for a group, add the bot to the group and use the group's negative ID).\nThe token is sent straight to GitHub Secrets (encrypted) and is not kept in this app or in the repository."),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { open("https://t.me/BotFather") }) { Text("Open BotFather") }
-            TextButton(onClick = { open("https://t.me/userinfobot") }) { Text("Get Chat ID") }
+            TextButton(onClick = { open("https://t.me/BotFather") }) { Text(t("Open BotFather")) }
+            TextButton(onClick = { open("https://t.me/userinfobot") }) { Text(t("Get Chat ID")) }
         }
         OutlinedTextField(
             value = bot, onValueChange = { bot = it.trim() },
-            label = { Text("Bot token") }, singleLine = true,
+            label = { Text(t("Bot token")) }, singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
             value = chat, onValueChange = { chat = it.trim() },
-            label = { Text("Chat ID") }, singleLine = true,
+            label = { Text(t("Chat ID")) }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth()
         )
@@ -197,7 +212,7 @@ fun TelegramCard(vm: MainViewModel) {
                 },
                 enabled = !st.busy && s.ghStatus == 1 && bot.isNotBlank() && chat.isNotBlank(),
                 shape = RoundedCornerShape(14.dp)
-            ) { Text("Save Telegram settings") }
+            ) { Text(t("Save Telegram settings")) }
             OutlinedButton(
                 onClick = { vm.sendTest() },
                 enabled = !testing && !st.busy && s.ghStatus == 1 && s.secretsOk,
@@ -207,22 +222,22 @@ fun TelegramCard(vm: MainViewModel) {
                     CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
                 }
-                Text("Send test message")
+                Text(t("Send test message"))
             }
         }
         Spacer(Modifier.height(6.dp))
-        InfoRow("Chat ID", s.chatId.ifBlank { "Not set" })
+        InfoRow(t("Chat ID"), s.chatId.ifBlank { t("Not set") })
         InfoRow(
-            "GitHub secrets",
-            if (s.secretsOk) "Saved" else "Not saved",
+            t("GitHub secrets"),
+            if (s.secretsOk) t("Saved") else t("Not saved"),
             if (s.secretsOk) StatusColors.ok else StatusColors.warn
         )
         InfoRow(
-            "Last delivery",
+            t("Last delivery"),
             when (s.tgStatus) {
-                1 -> "Delivered"
-                2 -> s.tgError.ifBlank { "Error" }
-                else -> "No delivery yet"
+                1 -> t("Delivered")
+                2 -> s.tgError.ifBlank { t("Error") }
+                else -> t("No delivery yet")
             },
             when (s.tgStatus) {
                 1 -> StatusColors.ok
@@ -232,15 +247,15 @@ fun TelegramCard(vm: MainViewModel) {
         )
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Send attendance through GitHub", style = MaterialTheme.typography.titleSmall)
+                Text(t("Send attendance through GitHub"), style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "Turn off to keep records only on this phone",
+                    t("Turn off to keep records only on this phone"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Switch(checked = s.notifyEnabled, onCheckedChange = { on ->
-                if (on && !(s.ghReady && s.secretsOk)) vm.toast("Connect GitHub and save the Telegram settings first") else vm.setNotify(on)
+                if (on && !(s.ghReady && s.secretsOk)) vm.toast(t("Connect GitHub and save the Telegram settings first")) else vm.setNotify(on)
             })
         }
         SetupStatus(st)
@@ -250,12 +265,12 @@ fun TelegramCard(vm: MainViewModel) {
 @Composable
 fun DiagnosticsDialog(vm: MainViewModel) {
     val text by vm.diagnostics.collectAsState()
-    val t = text ?: return
+    val body = text ?: return
     AlertDialog(
         onDismissRequest = { vm.consumeDiagnostics() },
-        title = { Text("Connection test") },
-        text = { Column(Modifier.verticalScroll(rememberScrollState())) { Text(t, style = MaterialTheme.typography.bodyMedium) } },
-        confirmButton = { TextButton(onClick = { vm.consumeDiagnostics() }) { Text("Close") } }
+        title = { Text(t("Connection test")) },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) { Text(body, style = MaterialTheme.typography.bodyMedium) } },
+        confirmButton = { TextButton(onClick = { vm.consumeDiagnostics() }) { Text(t("Close")) } }
     )
 }
 
@@ -264,34 +279,34 @@ fun UpdateCard(vm: MainViewModel) {
     val context = LocalContext.current
     val st by vm.update.collectAsState()
     AppCard {
-        Text("App update", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(t("App update"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
-        InfoRow("Installed version", Updater.currentVersion(context))
+        InfoRow(t("Installed version"), Updater.currentVersion(context))
         when (val u = st) {
             is UpdateState.Idle -> Unit
             is UpdateState.Checking -> {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text("Checking GitHub releases…", style = MaterialTheme.typography.bodySmall)
+                Text(t("Checking GitHub releases…"), style = MaterialTheme.typography.bodySmall)
             }
-            is UpdateState.UpToDate -> Text("You have the latest version (${u.current}).", style = MaterialTheme.typography.bodyMedium, color = StatusColors.ok)
+            is UpdateState.UpToDate -> Text(t("You have the latest version (%s).", u.current), style = MaterialTheme.typography.bodyMedium, color = StatusColors.ok)
             is UpdateState.Available -> {
-                Text("Version ${u.info.version} is available" + if (u.info.prerelease) " (pre-release)" else "", fontWeight = FontWeight.SemiBold)
+                Text(t("Version %s is available%s", u.info.version, if (u.info.prerelease) t(" (pre-release)") else ""), fontWeight = FontWeight.SemiBold)
                 if (u.info.notes.isNotBlank()) {
-                    Text("What's new:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
+                    Text(t("What's new:"), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
                     Text(u.info.notes.take(1500), style = MaterialTheme.typography.bodySmall)
                 }
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = { vm.downloadAndInstall(u.info) }, shape = RoundedCornerShape(14.dp)) { Text("Download and install") }
+                Button(onClick = { vm.downloadAndInstall(u.info) }, shape = RoundedCornerShape(14.dp)) { Text(t("Download and install")) }
             }
             is UpdateState.Downloading -> {
-                Text("Downloading ${u.info.version}… ${u.percent}%", style = MaterialTheme.typography.bodyMedium)
+                Text(t("Downloading %s… %s%%", u.info.version, u.percent), style = MaterialTheme.typography.bodyMedium)
                 LinearProgressIndicator(progress = { u.percent / 100f }, modifier = Modifier.fillMaxWidth())
             }
             is UpdateState.Ready -> {
-                Text("Version ${u.info.version} downloaded and verified.", color = StatusColors.ok)
+                Text(t("Version %s downloaded and verified.", u.info.version), color = StatusColors.ok)
                 if (u.note.isNotBlank()) Text(u.note, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = { vm.installDownloaded(u.file) }, shape = RoundedCornerShape(14.dp)) { Text("Install") }
+                Button(onClick = { vm.installDownloaded(u.file) }, shape = RoundedCornerShape(14.dp)) { Text(t("Install")) }
             }
             is UpdateState.Error -> Text(u.message, style = MaterialTheme.typography.bodySmall, color = StatusColors.error)
         }
@@ -300,9 +315,9 @@ fun UpdateCard(vm: MainViewModel) {
             onClick = { vm.checkForUpdate() },
             enabled = st !is UpdateState.Checking && st !is UpdateState.Downloading,
             shape = RoundedCornerShape(14.dp)
-        ) { Text("Update App") }
+        ) { Text(t("Update App")) }
         Text(
-            "Source: github.com/kavirkobra69/myworkgps releases",
+            t("Source: github.com/kavirkobra69/myworkgps releases"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

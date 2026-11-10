@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.geo
 
+import ir.mmdkavir.smartattendance.i18n.t
 import android.content.Context
 import android.location.Location
 import ir.mmdkavir.smartattendance.data.AppDb
@@ -81,8 +82,8 @@ object AttendanceEngine {
                 app,
                 Notifier.CH_ATTENDANCE,
                 Notifier.ID_ARRIVAL,
-                "Arrival recorded",
-                "${s.workplace} at ${record.time}"
+                t("Arrival recorded"),
+                t("%s at %s", s.workplace, record.time)
             )
         }
     }
@@ -118,8 +119,8 @@ object AttendanceEngine {
 
         if (!LocationHelper.hasFine(app) || !LocationHelper.hasBackground(app)) {
             Notifier.alert(
-                app, Notifier.ID_PERMISSION, "Location permission required",
-                "Allow location \"All the time\" so arrival can be detected in the background."
+                app, Notifier.ID_PERMISSION, t("Location permission required"),
+                t("Allow location \"All the time\" so arrival can be detected in the background.")
             )
             return
         }
@@ -128,8 +129,8 @@ object AttendanceEngine {
         if (!LocationHelper.isLocationEnabled(app)) {
             Prefs.edit { putBoolean(Keys.GPS_OFF, true) }
             Notifier.alert(
-                app, Notifier.ID_GPS, "GPS is turned off",
-                "Turn on location services so attendance can be detected."
+                app, Notifier.ID_GPS, t("GPS is turned off"),
+                t("Turn on location services so attendance can be detected.")
             )
             return
         }

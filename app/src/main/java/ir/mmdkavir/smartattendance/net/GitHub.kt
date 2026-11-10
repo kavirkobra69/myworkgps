@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.net
 
+import ir.mmdkavir.smartattendance.i18n.t
 import android.content.Context
 import android.util.Base64
 import kotlinx.coroutines.delay
@@ -27,10 +28,10 @@ data class RepoRef(val owner: String, val name: String) {
 
         /** Accepts https://github.com/o/r, .git, /tree/..., git@github.com:o/r.git and o/r. */
         fun parse(input: String): RepoRef? {
-            var t = input.trim()
-            t = t.removePrefix("git@github.com:")
-            t = t.replace(Regex("^(https?://)?(www\\.)?github\\.com/", RegexOption.IGNORE_CASE), "")
-            val parts = t.split('/').filter { it.isNotEmpty() }
+            var text = input.trim()
+            text = text.removePrefix("git@github.com:")
+            text = text.replace(Regex("^(https?://)?(www\\.)?github\\.com/", RegexOption.IGNORE_CASE), "")
+            val parts = text.split('/').filter { it.isNotEmpty() }
             if (parts.size < 2) return null
             val owner = parts[0]
             val name = parts[1].removeSuffix(".git")
@@ -100,10 +101,10 @@ object GitHub {
     private class Reply(val code: Int, val json: JSONObject?, val scopes: String?, val array: org.json.JSONArray? = null)
 
     fun describeNetworkError(e: IOException): String = when (e) {
-        is UnknownHostException -> "Cannot resolve api.github.com. Check your internet connection or DNS."
-        is SocketTimeoutException -> "Connection to GitHub timed out."
-        is SSLException -> "Secure connection to GitHub failed. Check the phone's date and time."
-        else -> "Cannot reach GitHub (${e.javaClass.simpleName}). Check your internet connection."
+        is UnknownHostException -> t("Cannot resolve api.github.com. Check your internet connection or DNS.")
+        is SocketTimeoutException -> t("Connection to GitHub timed out.")
+        is SSLException -> t("Secure connection to GitHub failed. Check the phone's date and time.")
+        else -> t("Cannot reach GitHub (%s). Check your internet connection.", e.javaClass.simpleName)
     }
 
     private fun call(token: String, method: String, path: String, body: JSONObject? = null): Reply {
@@ -139,17 +140,17 @@ object GitHub {
     private fun mapError(code: Int, json: JSONObject?, remaining: String?, retryAfter: String?, reset: String?): GhException {
         val msg = json?.optString("message").orEmpty()
         return when {
-            code == 401 -> GhException("GitHub rejected the token (invalid, expired or revoked). Create a new token and connect again.", code)
+            code == 401 -> GhException(t("GitHub rejected the token (invalid, expired or revoked). Create a new token and connect again."), code)
             code == 403 && (remaining == "0" || msg.contains("rate limit", true) || retryAfter != null) -> {
                 val wait = retryAfter?.toLongOrNull()
                     ?: reset?.toLongOrNull()?.let { (it - System.currentTimeMillis() / 1000).coerceAtLeast(1) }
-                GhException("GitHub rate limit reached" + (wait?.let { ", retry in about ${it}s" } ?: ""), code, retryable = true)
+                GhException(wait?.let { t("GitHub rate limit reached, retry in about %ss", it) } ?: t("GitHub rate limit reached"), code, retryable = true)
             }
-            code == 403 -> GhException("The token does not have the required permission. ${msg.ifBlank { "" }}".trim(), code)
-            code == 404 -> GhException("Not found. Check the repository URL, and that the token can access this repository.", code)
-            code == 422 -> GhException("GitHub refused the request: ${msg.ifBlank { "invalid data" }}", code)
-            code >= 500 || code == 429 -> GhException("GitHub is temporarily unavailable (HTTP $code).", code, retryable = true)
-            else -> GhException("GitHub error HTTP $code: $msg", code)
+            code == 403 -> GhException((t("The token does not have the required permission.") + " " + msg).trim(), code)
+            code == 404 -> GhException(t("Not found. Check the repository URL, and that the token can access this repository."), code)
+            code == 422 -> GhException(t("GitHub refused the request: %s", msg.ifBlank { t("invalid data") }), code)
+            code >= 500 || code == 429 -> GhException(t("GitHub is temporarily unavailable (HTTP %s).", code), code, retryable = true)
+            else -> GhException(t("GitHub error HTTP %s: %s", code, msg), code)
         }
     }
 
@@ -162,44 +163,44 @@ object GitHub {
     fun connect(context: Context, token: String, repoUrl: String): GhConnection {
         val steps = mutableListOf<DiagStep>()
         val repo = RepoRef.parse(repoUrl)
-            ?: throw GhException("Repository URL is not valid. Use https://github.com/owner/repository")
-        val t = token.trim()
-        if (t.length < 20 || t.any { it.isWhitespace() }) throw GhException("Token looks invalid. Paste the full Personal Access Token.")
+            ?: throw GhException(t("Repository URL is not valid. Use https://github.com/owner/repository"))
+        val tok = token.trim()
+        if (tok.length < 20 || tok.any { it.isWhitespace() }) throw GhException(t("Token looks invalid. Paste the full Personal Access Token."))
 
         fun fail(title: String, e: GhException): Nothing {
-            steps += DiagStep(title, false, e.message ?: "Failed")
+            steps += DiagStep(title, false, e.message ?: t("Failed"))
             throw StepsException(steps, e)
         }
 
         val user = try {
-            call(t, "GET", "/user")
+            call(tok, "GET", "/user")
         } catch (e: GhException) {
-            fail("GitHub token", e)
+            fail(t("GitHub token"), e)
         }
         val login = user.json?.optString("login").orEmpty()
-        steps += DiagStep("GitHub token", true, "Signed in as $login")
+        steps += DiagStep(t("GitHub token"), true, t("Signed in as %s", login))
 
         val repoReply = try {
-            call(t, "GET", repoPath(repo))
+            call(tok, "GET", repoPath(repo))
         } catch (e: GhException) {
-            fail("Repository", e)
+            fail(t("Repository"), e)
         }
-        val info = repoReply.json ?: throw GhException("Unexpected answer from GitHub")
+        val info = repoReply.json ?: throw GhException(t("Unexpected answer from GitHub"))
         val branch = info.optString("default_branch", "main")
         val perms = info.optJSONObject("permissions")
         val canPush = perms?.optBoolean("push", false) ?: false
         val fullName = info.optString("full_name", repo.full)
         val actual = RepoRef.parse(fullName) ?: repo
         if (!canPush) {
-            fail("Repository", GhException("The token can only read $fullName. It needs write access (Contents, Actions, Workflows and Secrets)."))
+            fail(t("Repository"), GhException(t("The token can only read %s. It needs write access (Contents, Actions, Workflows and Secrets).", fullName)))
         }
-        steps += DiagStep("Repository", true, "$fullName, default branch \"$branch\"" + if (info.optBoolean("private")) ", private" else ", public")
+        steps += DiagStep(t("Repository"), true, t("%s, default branch \"%s\", %s", fullName, branch, if (info.optBoolean(t("private"))) t("private") else t("public")))
 
         // Workflow file
         val existing = try {
-            call(t, "GET", "${repoPath(actual)}/contents/$WORKFLOW_PATH?ref=$branch")
+            call(tok, "GET", "${repoPath(actual)}/contents/$WORKFLOW_PATH?ref=$branch")
         } catch (e: GhException) {
-            if (e.code == 404) null else fail("Workflow file", e)
+            if (e.code == 404) null else fail(t("Workflow file"), e)
         }
         val desired = loadWorkflow(context)
         val currentText = existing?.json?.optString("content")?.let {
@@ -211,21 +212,21 @@ object GitHub {
         }
         if (existing == null || currentText?.trim() != desired.trim()) {
             val put = JSONObject()
-                .put("message", if (existing == null) "Add Smart Attendance workflow" else "Update Smart Attendance workflow")
+                .put("message", if (existing == null) t("Add Smart Attendance workflow") else t("Update Smart Attendance workflow"))
                 .put("content", Base64.encodeToString(desired.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
                 .put("branch", branch)
             existing?.json?.optString("sha")?.takeIf { it.isNotBlank() }?.let { put.put("sha", it) }
             try {
-                call(t, "PUT", "${repoPath(actual)}/contents/$WORKFLOW_PATH", put)
+                call(tok, "PUT", "${repoPath(actual)}/contents/$WORKFLOW_PATH", put)
             } catch (e: GhException) {
                 val hint = if (e.code == 403 || e.code == 404) {
-                    " Writing workflow files needs the \"Contents\" and \"Workflows\" write permissions (classic token: repo + workflow scopes). If the branch is protected, allow this token to push."
+                    t(" Writing workflow files needs the \"Contents\" and \"Workflows\" write permissions (classic token: repo + workflow scopes). If the branch is protected, allow this token to push.")
                 } else ""
-                fail("Workflow file", GhException((e.message ?: "Failed") + hint, e.code, e.retryable))
+                fail(t("Workflow file"), GhException((e.message ?: t("Failed")) + hint, e.code, e.retryable))
             }
-            steps += DiagStep("Workflow file", true, if (existing == null) "Created $WORKFLOW_PATH" else "Updated $WORKFLOW_PATH")
+            steps += DiagStep(t("Workflow file"), true, if (existing == null) t("Created %s", WORKFLOW_PATH) else t("Updated %s", WORKFLOW_PATH))
         } else {
-            steps += DiagStep("Workflow file", true, "$WORKFLOW_PATH is up to date")
+            steps += DiagStep(t("Workflow file"), true, t("%s is up to date", WORKFLOW_PATH))
         }
 
         // Workflow must be registered and active
@@ -233,7 +234,7 @@ object GitHub {
         var lastError: GhException? = null
         for (attempt in 1..5) {
             try {
-                wf = call(t, "GET", "${repoPath(actual)}/actions/workflows/$WORKFLOW_FILE").json
+                wf = call(tok, "GET", "${repoPath(actual)}/actions/workflows/$WORKFLOW_FILE").json
                 break
             } catch (e: GhException) {
                 lastError = e
@@ -242,35 +243,33 @@ object GitHub {
             }
         }
         if (wf == null) {
-            fail("GitHub Actions", GhException(
-                "The workflow is not visible to GitHub Actions yet" + (lastError?.message?.let { ": $it" } ?: "") +
-                    ". Make sure Actions are enabled for this repository (Settings → Actions) and try again.",
+            fail(t("GitHub Actions"), GhException(
+                t("The workflow is not visible to GitHub Actions yet%s. Make sure Actions are enabled for this repository (Settings → Actions) and try again.", lastError?.message?.let { ": $it" } ?: ""),
                 lastError?.code ?: 0
             ))
         }
         if (wf.optString("state") != "active") {
             try {
-                call(t, "PUT", "${repoPath(actual)}/actions/workflows/${wf.optLong("id")}/enable")
+                call(tok, "PUT", "${repoPath(actual)}/actions/workflows/${wf.optLong("id")}/enable")
             } catch (e: GhException) {
-                fail("GitHub Actions", GhException("The workflow is disabled and could not be enabled: ${e.message}", e.code))
+                fail(t("GitHub Actions"), GhException(t("The workflow is disabled and could not be enabled: %s", e.message), e.code))
             }
         }
-        steps += DiagStep("GitHub Actions", true, "Workflow \"${wf.optString("name")}\" is active")
+        steps += DiagStep(t("GitHub Actions"), true, t("Workflow \"%s\" is active", wf.optString("name")))
 
         // Secrets
         var present = false
         try {
-            val bot = secretExists(t, actual, SECRET_BOT)
-            val chat = secretExists(t, actual, SECRET_CHAT)
+            val bot = secretExists(tok, actual, SECRET_BOT)
+            val chat = secretExists(tok, actual, SECRET_CHAT)
             present = bot && chat
             steps += DiagStep(
-                "Telegram secrets", present,
-                if (present) "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set"
-                else "Missing: " + listOfNotNull(if (!bot) SECRET_BOT else null, if (!chat) SECRET_CHAT else null).joinToString(", ") +
-                    ". Enter the bot token and Chat ID below and press Save Telegram settings."
+                t("Telegram secrets"), present,
+                if (present) t("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set")
+                else t("Missing: %s. Enter the bot token and Chat ID below and press Save Telegram settings.", listOfNotNull(if (!bot) SECRET_BOT else null, if (!chat) SECRET_CHAT else null).joinToString(", "))
             )
         } catch (e: GhException) {
-            steps += DiagStep("Telegram secrets", false, "Could not check secrets: ${e.message} (needs the \"Secrets\" permission)")
+            steps += DiagStep(t("Telegram secrets"), false, t("Could not check secrets: %s (needs the \"Secrets\" permission)", e.message))
         }
         return GhConnection(login, actual, branch, present, steps)
     }
@@ -291,8 +290,8 @@ object GitHub {
         val keyJson = try {
             call(token, "GET", "${repoPath(repo)}/actions/secrets/public-key").json
         } catch (e: GhException) {
-            throw GhException("Could not read the repository secrets key: ${e.message} The token needs the \"Secrets\" read and write permission.", e.code, e.retryable)
-        } ?: throw GhException("Unexpected answer from GitHub")
+            throw GhException(t("Could not read the repository secrets key: %s The token needs the \"Secrets\" read and write permission.", e.message), e.code, e.retryable)
+        } ?: throw GhException(t("Unexpected answer from GitHub"))
         val keyId = keyJson.optString("key_id")
         val key = keyJson.optString("key")
         for ((name, value) in listOf(SECRET_BOT to botToken, SECRET_CHAT to chatId)) {
@@ -300,7 +299,7 @@ object GitHub {
             try {
                 call(token, "PUT", "${repoPath(repo)}/actions/secrets/$name", body)
             } catch (e: GhException) {
-                throw GhException("Could not save secret $name: ${e.message}", e.code, e.retryable)
+                throw GhException(t("Could not save secret %s: %s", name, e.message), e.code, e.retryable)
             }
         }
     }
@@ -311,12 +310,12 @@ object GitHub {
             call(token, "POST", "${repoPath(repo)}/actions/workflows/$WORKFLOW_FILE/dispatches", body)
         } catch (e: GhException) {
             val hint = when (e.code) {
-                404 -> " The workflow or repository was not found. Open Settings and press Connect again."
-                403 -> " The token needs the \"Actions\" write permission."
-                422 -> " Press Connect to reinstall the workflow."
+                404 -> t(" The workflow or repository was not found. Open Settings and press Connect again.")
+                403 -> t(" The token needs the \"Actions\" write permission.")
+                422 -> t(" Press Connect to reinstall the workflow.")
                 else -> ""
             }
-            throw GhException((e.message ?: "Failed") + hint, e.code, e.retryable)
+            throw GhException((e.message ?: t("Failed")) + hint, e.code, e.retryable)
         }
     }
 
@@ -361,7 +360,7 @@ object GitHub {
                 reason = job.optJSONArray("steps")?.let { steps ->
                     (0 until steps.length()).map { steps.getJSONObject(it) }
                         .firstOrNull { it.optString("conclusion") == "failure" }?.optString("name")
-                }?.let { "step \"$it\" failed" }
+                }?.let { t("step \"%s\" failed", it) }
                 break
             }
         }
@@ -378,34 +377,33 @@ object GitHub {
         val id = "test-" + System.currentTimeMillis()
         val steps = mutableListOf<DiagStep>()
         try {
-            progress("Triggering GitHub Actions…")
+            progress(t("Triggering GitHub Actions…"))
             dispatch(token, repo, branch, inputs + ("event_id" to id))
-            steps += DiagStep("Trigger workflow", true, "Accepted by GitHub")
+            steps += DiagStep(t("Trigger workflow"), true, t("Accepted by GitHub"))
             val deadline = System.currentTimeMillis() + 150_000
             var run: RunInfo? = null
             while (System.currentTimeMillis() < deadline) {
                 delay(5_000)
                 run = findRun(token, repo, id)
-                progress(if (run == null) "Waiting for the run to start…" else "Run ${run.status}…")
+                progress(if (run == null) t("Waiting for the run to start…") else t("Run %s…", run.status))
                 if (run?.status == "completed") break
             }
             if (run == null) {
-                steps += DiagStep("Workflow run", false, "No run appeared within 2.5 minutes. Check the Actions tab of the repository.")
+                steps += DiagStep(t("Workflow run"), false, t("No run appeared within 2.5 minutes. Check the Actions tab of the repository."))
             } else if (run.status != "completed") {
-                steps += DiagStep("Workflow run", false, "Still running after 2.5 minutes: ${run.url}")
+                steps += DiagStep(t("Workflow run"), false, t("Still running after 2.5 minutes: %s", run.url))
             } else if (run.conclusion == "success") {
-                steps += DiagStep("Workflow run", true, "Finished successfully")
-                steps += DiagStep("Telegram", true, "Message sent. Check your Telegram chat.")
+                steps += DiagStep(t("Workflow run"), true, t("Finished successfully"))
+                steps += DiagStep(t("Telegram"), true, t("Message sent. Check your Telegram chat."))
             } else {
                 val why = failureReason(token, repo, run.id)
                 steps += DiagStep(
-                    "Workflow run", false,
-                    "Run ${run.conclusion}" + (why?.let { " ($it)" } ?: "") +
-                        ". Open ${run.url} to read the error. Most often the Telegram bot token or Chat ID is wrong, or you have not pressed Start in your bot."
+                    t("Workflow run"), false,
+                    t("Run %s%s. Open %s to read the error. Most often the Telegram bot token or Chat ID is wrong, or you have not pressed Start in your bot.", run.conclusion, why?.let { " ($it)" } ?: "", run.url)
                 )
             }
         } catch (e: GhException) {
-            steps += DiagStep("Trigger workflow", false, e.message ?: "Failed")
+            steps += DiagStep(t("Trigger workflow"), false, e.message ?: t("Failed"))
         }
         return steps
     }

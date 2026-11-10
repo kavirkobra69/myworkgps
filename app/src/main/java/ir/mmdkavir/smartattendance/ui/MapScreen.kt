@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.ui
 
+import ir.mmdkavir.smartattendance.i18n.t
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -42,6 +44,13 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
 
     var focus by remember { mutableStateOf(workplace) }
     var token by remember { mutableIntStateOf(0) }
+    LaunchedEffect(loc) {
+        val l = loc
+        if (focus == null && l != null) {
+            focus = GeoPoint(l.latitude, l.longitude)
+            token++
+        }
+    }
 
     Box(modifier.fillMaxSize()) {
         OsmMap(
@@ -68,7 +77,7 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
         ) {
             Column(Modifier.padding(14.dp)) {
                 Text(
-                    s.workplace.ifBlank { "Workplace" },
+                    s.workplace.ifBlank { t("Workplace") },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -80,16 +89,16 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                     Pill(zoneLabel(zone), zoneColor(zone), Icons.Default.Place)
                     Text(
                         when {
-                            distance == null -> "Waiting for GPS…"
-                            distance >= 1000 -> "%.1f km away".format(distance / 1000)
-                            else -> "${distance.toInt()} m away"
+                            distance == null -> t("Waiting for GPS…")
+                            distance >= 1000 -> t("%.1f km away", distance / 1000)
+                            else -> t("%s m away", distance.toInt())
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Text(
-                    "Radius ${s.radius} m · Blue: outside · Orange: approaching · Green: inside",
+                    t("Radius %s m · Blue: outside · Orange: approaching · Green: inside", s.radius),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp)
@@ -110,7 +119,7 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                     token++
                 }
             }) {
-                Icon(Icons.Default.Place, contentDescription = "Center on workplace")
+                Icon(Icons.Default.Place, contentDescription = t("Center on workplace"))
             }
             FloatingActionButton(onClick = {
                 val l = loc
@@ -118,10 +127,10 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                     focus = GeoPoint(l.latitude, l.longitude)
                     token++
                 } else {
-                    vm.toast("Waiting for a GPS fix. Check location permission and GPS.")
+                    vm.toast(t("Waiting for a GPS fix. Check location permission and GPS."))
                 }
             }) {
-                Icon(Icons.Default.MyLocation, contentDescription = "Center on my location")
+                Icon(Icons.Default.MyLocation, contentDescription = t("Center on my location"))
             }
         }
     }

@@ -2,6 +2,8 @@ package ir.mmdkavir.smartattendance.ui
 
 import android.app.Application
 import android.location.Location
+import android.os.SystemClock
+import ir.mmdkavir.smartattendance.i18n.Lang
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import ir.mmdkavir.smartattendance.data.AppDb
@@ -21,6 +23,9 @@ import ir.mmdkavir.smartattendance.update.UpdateException
 import ir.mmdkavir.smartattendance.update.UpdateInfo
 import ir.mmdkavir.smartattendance.update.UpdateState
 import ir.mmdkavir.smartattendance.update.Updater
+import ir.mmdkavir.smartattendance.i18n.t
+import ir.mmdkavir.smartattendance.util.Fix
+import ir.mmdkavir.smartattendance.util.FixFilter
 import ir.mmdkavir.smartattendance.util.Geo
 import ir.mmdkavir.smartattendance.work.SendWorker
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +35,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -83,6 +90,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val update: StateFlow<UpdateState> = _update
 
     private var locationJob: Job? = null
+    private var lastFix: Fix? = null
 
     fun consumeDiagnostics() {
         _diagnostics.value = null
@@ -107,14 +115,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (Prefs.now().setupDone) ir.mmdkavir.smartattendance.geo.GeofenceController.ensure(c)
     }
 
+    private fun Location.toFix() = Fix(latitude, longitude, if (hasAccuracy()) accuracy else 0f, elapsedRealtimeNanos / 1_000_000L)
+
     fun startLocationUpdates() {
         if (locationJob?.isActive == true) return
         val c = getApplication<Application>()
         if (!LocationHelper.hasFine(c) && !LocationHelper.hasCoarse(c)) return
+        // Never show a position left over from before: wait for a fresh, accurate fix.
+        _location.value = null
+        lastFix = null
         locationJob = viewModelScope.launch {
-            LocationHelper.updates(c, 5_000L)
+            LocationHelper.updates(c, 2_000L)
                 .catch { }
-                .collect { _location.value = it }
+                .collect { loc ->
+                    val fix = loc.toFix()
+                    if (FixFilter.accept(lastFix, fix, SystemClock.elapsedRealtime())) {
+                        lastFix = fix
+                        _location.value = loc
+                    }
+                }
         }
     }
 
@@ -123,8 +142,65 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         locationJob = null
     }
 
-    suspend fun fetchCurrent(): Location? =
-        LocationHelper.currentFix(getApplication(), 25_000L)
+    /** Waits for an accurate fix (up to ~25 s) and returns the best one, or null if none was good enough. */
+    suspend fun fetchCurrent(): Location? {
+        val c = getApplication<Application>()
+        if (!LocationHelper.hasFine(c) || !LocationHelper.isLocationEnabled(c)) return null
+        var best: Location? = null
+        try {
+            withTimeoutOrNull(25_000L) {
+                LocationHelper.updates(c, 1_000L).first { loc ->
+                    val fix = loc.toFix()
+                    if (FixFilter.valid(fix, SystemClock.elapsedRealtime()) && (best == null || loc.accuracy < best!!.accuracy)) best = loc
+                    best != null && best!!.accuracy <= 30f
+                }
+            }
+        } catch (e: NoSuchElementException) {
+            // flow closed without a fix
+        }
+        return best
+    }
+
+    fun setAppLang(lang: String) {
+        val c = getApplication<Application>()
+        Prefs.edit { putString(Keys.APP_LANG, Lang.normalize(lang)) }
+        ir.mmdkavir.smartattendance.geo.Notifier.ensureChannels(c)
+        if (Prefs.now().setupDone) ir.mmdkavir.smartattendance.geo.GeofenceController.ensure(c)
+    }
+
+    /** Removes records from this phone's history only. Telegram messages and GitHub runs are untouched. */
+    fun deleteRecords(ids: Set<Long>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val removed = withContext(Dispatchers.IO) {
+                var n = 0
+                ids.toList().chunked(400).forEach { chunk ->
+                    db.outbox().deleteByEventIds(db.attendance().eventIds(chunk))
+                    n += db.attendance().deleteByIds(chunk)
+                }
+                resetLastArrival()
+                n
+            }
+            toast(t("Deleted %s record(s) from this phone", removed))
+        }
+    }
+
+    fun deleteAllRecords() {
+        viewModelScope.launch {
+            val removed = withContext(Dispatchers.IO) {
+                val n = db.attendance().deleteAll()
+                db.outbox().deleteAll()
+                Prefs.edit { putLong(Keys.LAST_ARRIVAL, 0L) }
+                n
+            }
+            toast(t("Deleted %s record(s) from this phone", removed))
+        }
+    }
+
+    private suspend fun resetLastArrival() {
+        val latest = db.attendance().latest()
+        Prefs.edit { putLong(Keys.LAST_ARRIVAL, latest?.arrivalMillis ?: 0L) }
+    }
 
     fun status(s: AppSettings, d: Device, loc: Location?): GeoStatus = when {
         !s.setupDone || !s.hasLocation -> GeoStatus.NO_SETUP
@@ -204,7 +280,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun steps(title: String, list: List<DiagStep>): String {
         val ok = list.isNotEmpty() && list.all { it.ok }
-        return (if (ok) "Everything works.\n\n" else "Something is not working.\n\n") +
+        return (if (ok) t("Everything works.\n\n") else t("Something is not working.\n\n")) +
             list.joinToString("\n\n") { (if (it.ok) "✓ " else "✗ ") + it.title + ": " + it.detail }
     }
 
@@ -212,18 +288,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun connectGitHub(token: String, repoUrl: String) {
         if (_setup.value.busy) return
         val saved = Prefs.ghToken()
-        val t = token.trim().ifBlank { saved }
-        if (t.isBlank()) {
-            toast("Enter your GitHub token first")
+        val tok = token.trim().ifBlank { saved }
+        if (tok.isBlank()) {
+            toast(t("Enter your GitHub token first"))
             return
         }
         viewModelScope.launch {
-            _setup.value = SetupUi(busy = true, progress = "Connecting to GitHub…")
+            _setup.value = SetupUi(busy = true, progress = t("Connecting to GitHub…"))
             val c = getApplication<Application>()
             try {
-                val conn = withContext(Dispatchers.IO) { GitHub.connect(c, t, repoUrl) }
+                val conn = withContext(Dispatchers.IO) { GitHub.connect(c, tok, repoUrl) }
                 Prefs.edit {
-                    putString(Keys.GH_TOKEN, t)
+                    putString(Keys.GH_TOKEN, tok)
                     putString(Keys.GH_URL, "https://github.com/${conn.repo.full}")
                     putString(Keys.GH_OWNER, conn.repo.owner)
                     putString(Keys.GH_REPO, conn.repo.name)
@@ -234,17 +310,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     putBoolean(Keys.SECRETS_OK, conn.secretsPresent)
                 }
                 if (Prefs.now().chatId.isNotBlank() && conn.secretsPresent) Prefs.edit { putBoolean(Keys.NOTIFY, true) }
-                _diagnostics.value = steps("GitHub", conn.steps)
-                _setup.value = SetupUi(success = "Connected to ${conn.repo.full}")
+                _diagnostics.value = steps(t("GitHub"), conn.steps)
+                _setup.value = SetupUi(success = t("Connected to %s", conn.repo.full))
             } catch (e: GitHub.StepsException) {
-                Prefs.edit { putInt(Keys.GH_STATUS, 2); putString(Keys.GH_ERR, e.message ?: "Failed") }
-                _diagnostics.value = steps("GitHub", e.steps)
+                Prefs.edit { putInt(Keys.GH_STATUS, 2); putString(Keys.GH_ERR, e.message ?: t("Failed")) }
+                _diagnostics.value = steps(t("GitHub"), e.steps)
                 _setup.value = SetupUi(error = e.message)
             } catch (e: GhException) {
-                Prefs.edit { putInt(Keys.GH_STATUS, 2); putString(Keys.GH_ERR, e.message ?: "Failed") }
+                Prefs.edit { putInt(Keys.GH_STATUS, 2); putString(Keys.GH_ERR, e.message ?: t("Failed")) }
                 _setup.value = SetupUi(error = e.message)
             } catch (e: Exception) {
-                _setup.value = SetupUi(error = "Connection failed (${e.javaClass.simpleName})")
+                _setup.value = SetupUi(error = t("Connection failed (%s)", e.javaClass.simpleName))
             }
         }
     }
@@ -253,22 +329,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveTelegramSecrets(botToken: String, chatId: String) {
         val s = Prefs.now()
         if (!s.ghReady || s.ghStatus != 1) {
-            toast("Connect GitHub first")
+            toast(t("Connect GitHub first"))
             return
         }
         val bot = botToken.trim()
         val chat = chatId.trim()
         if (!Regex("^\\d{5,}:[A-Za-z0-9_-]{20,}$").matches(bot)) {
-            toast("Bot token format is wrong. It looks like 123456789:AAH...")
+            toast(t("Bot token format is wrong. It looks like 123456789:AAH..."))
             return
         }
         if (!Regex("^-?\\d{1,20}$").matches(chat)) {
-            toast("Chat ID must be a number (a group ID starts with -)")
+            toast(t("Chat ID must be a number (a group ID starts with -)"))
             return
         }
         if (_setup.value.busy) return
         viewModelScope.launch {
-            _setup.value = SetupUi(busy = true, progress = "Saving secrets to GitHub…")
+            _setup.value = SetupUi(busy = true, progress = t("Saving secrets to GitHub…"))
             try {
                 withContext(Dispatchers.IO) { GitHub.storeSecrets(Prefs.ghToken(), RepoRef(s.ghOwner, s.ghRepo), bot, chat) }
                 Prefs.edit {
@@ -278,11 +354,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     putInt(Keys.TG_STATUS, 0)
                     putString(Keys.TG_ERR, "")
                 }
-                _setup.value = SetupUi(success = "Telegram settings saved in GitHub Secrets. Press Send test message to verify.")
+                _setup.value = SetupUi(success = t("Telegram settings saved in GitHub Secrets. Press Send test message to verify."))
             } catch (e: GhException) {
                 _setup.value = SetupUi(error = e.message)
             } catch (e: Exception) {
-                _setup.value = SetupUi(error = "Could not save secrets (${e.javaClass.simpleName})")
+                _setup.value = SetupUi(error = t("Could not save secrets (%s)", e.javaClass.simpleName))
             }
         }
     }
@@ -291,7 +367,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun sendTest() {
         val s = Prefs.now()
         if (!s.ghReady || s.ghStatus != 1 || !s.secretsOk) {
-            toast("Connect GitHub and save the Telegram settings first")
+            toast(t("Connect GitHub and save the Telegram settings first"))
             return
         }
         if (_testing.value) return
@@ -303,9 +379,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             val ok = list.isNotEmpty() && list.all { it.ok }
-            if (ok) Prefs.setTg(1, "") else Prefs.setTg(2, list.firstOrNull { !it.ok }?.detail ?: "Test failed")
+            if (ok) Prefs.setTg(1, "") else Prefs.setTg(2, list.firstOrNull { !it.ok }?.detail ?: t("Test failed"))
             _setup.value = SetupUi()
-            _diagnostics.value = steps("Test", list)
+            _diagnostics.value = steps(t("Test"), list)
             _testing.value = false
         }
     }
@@ -325,9 +401,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val current = Updater.currentVersion(c)
                 if (Updater.isNewer(info.version, current)) UpdateState.Available(info) else UpdateState.UpToDate(current)
             } catch (e: UpdateException) {
-                UpdateState.Error(e.message ?: "Update check failed")
+                UpdateState.Error(e.message ?: t("Update check failed"))
             } catch (e: Exception) {
-                UpdateState.Error("Update check failed (${e.javaClass.simpleName})")
+                UpdateState.Error(t("Update check failed (%s)", e.javaClass.simpleName))
             }
         }
     }
@@ -345,12 +421,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     f
                 }
                 if (Updater.install(c, file) == InstallResult.NEEDS_PERMISSION) {
-                    toast("Allow installs from Smart Attendance, then press Install")
+                    toast(t("Allow installs from Smart Attendance, then press Install"))
                 }
             } catch (e: UpdateException) {
-                _update.value = UpdateState.Error(e.message ?: "Update failed")
+                _update.value = UpdateState.Error(e.message ?: t("Update failed"))
             } catch (e: Exception) {
-                _update.value = UpdateState.Error("Update failed (${e.javaClass.simpleName})")
+                _update.value = UpdateState.Error(t("Update failed (%s)", e.javaClass.simpleName))
             }
         }
     }
@@ -359,10 +435,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val c = getApplication<Application>()
         try {
             if (Updater.install(c, file) == InstallResult.NEEDS_PERMISSION) {
-                toast("Allow installs from Smart Attendance, then press Install again")
+                toast(t("Allow installs from Smart Attendance, then press Install again"))
             }
         } catch (e: Exception) {
-            _update.value = UpdateState.Error("Could not open the installer (${e.javaClass.simpleName})")
+            _update.value = UpdateState.Error(t("Could not open the installer (%s)", e.javaClass.simpleName))
         }
     }
 }

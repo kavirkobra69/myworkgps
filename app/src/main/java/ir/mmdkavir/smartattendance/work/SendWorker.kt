@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.work
 
+import ir.mmdkavir.smartattendance.i18n.t
 import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
@@ -50,12 +51,12 @@ class SendWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             } catch (e: GhException) {
                 if (e.retryable) {
                     retry = true
-                    Prefs.setTg(2, (e.message ?: "GitHub error") + " Will retry.")
+                    Prefs.setTg(2, t("%s Will retry.", e.message ?: t("GitHub error")))
                 } else {
-                    Prefs.setTg(2, e.message ?: "GitHub error")
+                    Prefs.setTg(2, e.message ?: t("GitHub error"))
                     Notifier.alert(
-                        app, Notifier.ID_TELEGRAM, "Attendance not delivered",
-                        "${e.message} The message stays queued; fix the GitHub settings and press Connect."
+                        app, Notifier.ID_TELEGRAM, t("Attendance not delivered"),
+                        t("%s The message stays queued; fix the GitHub settings and press Connect.", e.message)
                     )
                     return Result.success()
                 }
@@ -104,25 +105,25 @@ class SendWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                 val why = GitHub.failureReason(token, repo, run.id)
                 if (current.dispatches < 3) {
                     db.outbox().resetDispatch(current.id)
-                    throw GhException("Workflow run ${run.conclusion}" + (why?.let { " ($it)" } ?: "") + ".", retryable = true)
+                    throw GhException(t("Workflow run %s%s.", run.conclusion, why?.let { " ($it)" } ?: ""), retryable = true)
                 }
                 db.outbox().delete(current.id)
-                val msg = "Workflow run ${run.conclusion}" + (why?.let { " ($it)" } ?: "") + ". See ${run.url}"
+                val msg = t("Workflow run %s%s. See %s", run.conclusion, why?.let { " ($it)" } ?: "", run.url)
                 Prefs.setTg(2, msg)
-                Notifier.alert(app, Notifier.ID_TELEGRAM, "Attendance message failed", msg)
+                Notifier.alert(app, Notifier.ID_TELEGRAM, t("Attendance message failed"), msg)
                 return
             }
             val age = System.currentTimeMillis() - current.dispatchedAt
             if (run == null && age > TimeUnit.MINUTES.toMillis(10)) {
                 db.outbox().delete(current.id)
-                val msg = "GitHub accepted the request but no run appeared. Check the Actions tab."
+                val msg = t("GitHub accepted the request but no run appeared. Check the Actions tab.")
                 Prefs.setTg(2, msg)
-                Notifier.alert(app, Notifier.ID_TELEGRAM, "Attendance message status unknown", msg)
+                Notifier.alert(app, Notifier.ID_TELEGRAM, t("Attendance message status unknown"), msg)
                 return
             }
             if (age > TimeUnit.MINUTES.toMillis(20)) {
                 db.outbox().delete(current.id)
-                Prefs.setTg(2, "The GitHub run did not finish in time. Check the Actions tab.")
+                Prefs.setTg(2, t("The GitHub run did not finish in time. Check the Actions tab."))
                 return
             }
             if (System.currentTimeMillis() > waitUntil) throw Waiting()

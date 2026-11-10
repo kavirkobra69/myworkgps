@@ -16,7 +16,7 @@ class GeofenceReceiver : BroadcastReceiver() {
         if (event.hasError()) {
             Prefs.edit {
                 putBoolean(Keys.GEO_OK, false)
-                putString(Keys.GEO_ERR, "Geofence error code ${event.errorCode}")
+                putString(Keys.GEO_ERR, t("Geofence error code %s", event.errorCode))
             }
             return
         }

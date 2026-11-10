@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.ui
 
+import ir.mmdkavir.smartattendance.i18n.t
 import android.location.Location
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -52,9 +53,9 @@ fun zoneColor(z: Zone): Color = when (z) {
 }
 
 fun zoneLabel(z: Zone): String = when (z) {
-    Zone.INSIDE -> "Inside Workplace"
-    Zone.APPROACHING -> "Approaching Workplace"
-    Zone.OUTSIDE -> "Outside Workplace"
+    Zone.INSIDE -> t("Inside Workplace")
+    Zone.APPROACHING -> t("Approaching Workplace")
+    Zone.OUTSIDE -> t("Outside Workplace")
 }
 
 class PermissionActions(

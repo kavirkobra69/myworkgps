@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.geo
 
+import ir.mmdkavir.smartattendance.i18n.t
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
@@ -52,14 +53,14 @@ object GeofenceController {
         if (!canRegister(app, s)) {
             Prefs.edit {
                 putBoolean(Keys.GEO_OK, false)
-                putString(Keys.GEO_ERR, "Location permission (Allow all the time) or workplace is not set")
+                putString(Keys.GEO_ERR, t("Location permission (Allow all the time) or workplace is not set"))
             }
             return
         }
         if (!LocationHelper.playServicesOk(app)) {
             Prefs.edit {
                 putBoolean(Keys.GEO_OK, false)
-                putString(Keys.GEO_ERR, "Google Play services unavailable: using 15-minute fallback checks")
+                putString(Keys.GEO_ERR, t("Google Play services unavailable: using 15-minute fallback checks"))
             }
             return
         }
@@ -99,7 +100,7 @@ object GeofenceController {
                 .addOnFailureListener { e ->
                     Prefs.edit {
                         putBoolean(Keys.GEO_OK, false)
-                        putString(Keys.GEO_ERR, e.message ?: "Geofence registration failed")
+                        putString(Keys.GEO_ERR, e.message ?: t("Geofence registration failed"))
                     }
                 }
         }

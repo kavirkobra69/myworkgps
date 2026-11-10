@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.ui
 
+import ir.mmdkavir.smartattendance.i18n.t
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -44,8 +45,6 @@ import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 import kotlin.math.roundToInt
 
-private val DEFAULT_CENTER = GeoPoint(35.6892, 51.3890)
-
 @Composable
 fun WorkplacePicker(
     vm: MainViewModel,
@@ -64,7 +63,7 @@ fun WorkplacePicker(
     var searching by remember { mutableStateOf(false) }
     var locating by remember { mutableStateOf(false) }
     var focus by remember {
-        mutableStateOf(if (lat != null && lng != null) GeoPoint(lat, lng) else DEFAULT_CENTER)
+        mutableStateOf<GeoPoint?>(if (lat != null && lng != null) GeoPoint(lat, lng) else null)
     }
     var token by remember { mutableIntStateOf(0) }
     var centeredOnUser by remember { mutableStateOf(lat != null) }
@@ -85,7 +84,7 @@ fun WorkplacePicker(
             searching = true
             results = Nominatim.search(q)
             searching = false
-            if (results.isEmpty()) vm.toast("No results found. Check the name or your connection.")
+            if (results.isEmpty()) vm.toast(t("No results found. Check the name or your connection."))
         }
     }
 
@@ -93,7 +92,7 @@ fun WorkplacePicker(
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
-            label = { Text("Search workplace or address") },
+            label = { Text(t("Search workplace or address")) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -103,7 +102,7 @@ fun WorkplacePicker(
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
                     IconButton(onClick = { search() }) {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
+                        Icon(Icons.Default.Search, contentDescription = t("Search"))
                     }
                 }
             }
@@ -138,7 +137,7 @@ fun WorkplacePicker(
                 .clip(RoundedCornerShape(16.dp)),
             workplace = if (lat != null && lng != null) GeoPoint(lat, lng) else null,
             radius = radius,
-            workplaceName = "Workplace",
+            workplaceName = t("Workplace"),
             user = loc,
             zone = Zone.OUTSIDE,
             focus = focus,
@@ -149,9 +148,9 @@ fun WorkplacePicker(
 
         Text(
             if (lat != null && lng != null) {
-                "Selected: ${"%.6f".format(lat)}, ${"%.6f".format(lng)}"
+                t("Selected: %s, %s", String.format(java.util.Locale.US, "%.6f", lat), String.format(java.util.Locale.US, "%.6f", lng))
             } else {
-                "Tap the map, search, or use your current location to set the workplace."
+                t("Tap the map, search, or use your current location to set the workplace.")
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -171,7 +170,7 @@ fun WorkplacePicker(
                             focus = GeoPoint(fix.latitude, fix.longitude)
                             token++
                         } else {
-                            vm.toast("Could not get a GPS fix. Enable GPS and try near a window or outdoors.")
+                            vm.toast(t("Could not get a GPS fix. Enable GPS and try near a window or outdoors."))
                         }
                     }
                 }
@@ -186,13 +185,13 @@ fun WorkplacePicker(
                 Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.padding(start = 8.dp))
-            Text(if (locating) "Getting location…" else "Use my current location")
+            Text(if (locating) t("Getting location…") else t("Use my current location"))
         }
 
         Column {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Geofence radius", style = MaterialTheme.typography.titleSmall)
-                Text("$radius m", style = MaterialTheme.typography.titleSmall)
+                Text(t("Geofence radius"), style = MaterialTheme.typography.titleSmall)
+                Text(t("%s m", radius), style = MaterialTheme.typography.titleSmall)
             }
             Slider(
                 value = radius.toFloat(),
@@ -201,9 +200,9 @@ fun WorkplacePicker(
             )
             Text(
                 if (radius < 100) {
-                    "Small radii can be missed by Android. 100 m or more is recommended."
+                    t("Small radii can be missed by Android. 100 m or more is recommended.")
                 } else {
-                    "Default is 100 m. Allowed range: 50 to 1000 m."
+                    t("Default is 100 m. Allowed range: 50 to 1000 m.")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

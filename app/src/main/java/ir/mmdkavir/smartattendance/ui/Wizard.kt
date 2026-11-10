@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.ui
 
+import ir.mmdkavir.smartattendance.i18n.t
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,7 +40,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
-private val STEP_TITLES = listOf("Your details", "Workplace location", "GitHub & Telegram", "Permissions")
+private fun stepTitles() = listOf(t("Your details"), t("Workplace location"), t("GitHub & Telegram"), t("Permissions"))
 
 @Composable
 fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifier = Modifier) {
@@ -67,14 +68,14 @@ fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifie
             .padding(horizontal = 20.dp)
     ) {
         Spacer(Modifier.height(16.dp))
-        Text("Smart Attendance", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(t("Smart Attendance"), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(
-            "Step ${step + 1} of ${STEP_TITLES.size} · ${STEP_TITLES[step]}",
+            t("Step %s of %s · %s", step + 1, stepTitles().size, stepTitles()[step]),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(10.dp))
-        LinearProgressIndicator(progress = { (step + 1) / STEP_TITLES.size.toFloat() }, modifier = Modifier.fillMaxWidth())
+        LinearProgressIndicator(progress = { (step + 1) / stepTitles().size.toFloat() }, modifier = Modifier.fillMaxWidth())
 
         Column(
             Modifier
@@ -85,22 +86,23 @@ fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifie
         ) {
             when (step) {
                 0 -> {
+                    AppLanguageCard(vm)
                     Text(
-                        "Attendance messages will use these details.",
+                        t("Attendance messages will use these details."),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedTextField(
                         value = name, onValueChange = { name = it },
-                        label = { Text("Full name") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+                        label = { Text(t("Full name")) }, singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = emp, onValueChange = { emp = it },
-                        label = { Text("Employee ID (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+                        label = { Text(t("Employee ID (optional)")) }, singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = place, onValueChange = { place = it },
-                        label = { Text("Workplace name") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+                        label = { Text(t("Workplace name")) }, singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                 }
 
@@ -119,61 +121,59 @@ fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifie
 
                 2 -> {
                     Text(
-                        "Attendance messages are sent by a GitHub Actions workflow in your own repository, using a Telegram bot you create. You can skip this and finish it later in Settings.",
+                        t("Attendance messages are sent by a GitHub Actions workflow in your own repository, using a Telegram bot you create. You can skip this and finish it later in Settings."),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     GitHubCard(vm)
                     TelegramCard(vm)
                     MessageFormatCard(vm)
-                    TextButton(onClick = { step = 3 }) { Text("Skip for now") }
+                    TextButton(onClick = { step = 3 }) { Text(t("Skip for now")) }
                 }
 
                 else -> {
                     Text(
-                        "Android needs these permissions to detect your arrival reliably.",
+                        t("Android needs these permissions to detect your arrival reliably."),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     AppCard {
                         PermRow(
-                            "Precise location",
-                            "Needed to know when you enter the workplace area.",
-                            d.fine, "Grant", actions.requestBasic
+                            t("Precise location"),
+                            t("Needed to know when you enter the workplace area."),
+                            d.fine, t("Grant"), actions.requestBasic
                         )
                         PermRow(
-                            "Allow all the time",
-                            "Needed so arrival is detected when the app is closed or removed from recent apps. Android opens the app's settings: choose Location → Allow all the time.",
-                            d.background, "Open", actions.requestBackground
+                            t("Allow all the time"),
+                            t("Needed so arrival is detected when the app is closed or removed from recent apps. Android opens the app's settings: choose Location → Allow all the time."),
+                            d.background, t("Open"), actions.requestBackground
                         )
                         PermRow(
-                            "Location services (GPS)",
-                            "Android does not let apps turn GPS on silently. Enable it in system settings.",
-                            d.gpsOn, "Open settings", actions.openLocationSettings
+                            t("Location services (GPS)"),
+                            t("Android does not let apps turn GPS on silently. Enable it in system settings."),
+                            d.gpsOn, t("Open settings"), actions.openLocationSettings
                         )
                         if (Build.VERSION.SDK_INT >= 33) {
                             PermRow(
-                                "Notifications",
-                                "Shows a confirmation when your arrival is recorded and warns you if monitoring stops.",
-                                d.notifications, "Grant", actions.requestBasic
+                                t("Notifications"),
+                                t("Shows a confirmation when your arrival is recorded and warns you if monitoring stops."),
+                                d.notifications, t("Grant"), actions.requestBasic
                             )
                         }
                     }
                     AppCard {
-                        Text("Also used by the app", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(t("Also used by the app"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Text(
-                            "• Foreground service (location): a short notification while an arrival is verified.\n" +
-                                "• Receive boot completed: restores monitoring after the phone restarts.\n" +
-                                "• Internet: triggers your GitHub Actions workflow, which sends the Telegram message.",
+                            t("• Foreground service (location): a short notification while an arrival is verified.\n• Receive boot completed: restores monitoring after the phone restarts.\n• Internet: triggers your GitHub Actions workflow, which sends the Telegram message."),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     OutlinedButton(onClick = actions.openBatterySettings, shape = RoundedCornerShape(14.dp)) {
-                        Text("Battery optimization settings")
+                        Text(t("Battery optimization settings"))
                     }
                     Text(
-                        "Tip: set Smart Attendance to Unrestricted battery use, especially on Xiaomi, Huawei, Oppo, Vivo and Samsung phones.",
+                        t("Tip: set Smart Attendance to Unrestricted battery use, especially on Xiaomi, Huawei, Oppo, Vivo and Samsung phones."),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -192,7 +192,7 @@ fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifie
                     onClick = { step -= 1 },
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.weight(1f)
-                ) { Text("Back") }
+                ) { Text(t("Back")) }
             }
             Button(
                 onClick = {
@@ -219,7 +219,7 @@ fun SetupWizard(vm: MainViewModel, actions: PermissionActions, modifier: Modifie
                 enabled = canNext,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.weight(1f)
-            ) { Text(if (step == STEP_TITLES.size - 1) "Finish" else "Next") }
+            ) { Text(if (step == stepTitles().size - 1) t("Finish") else t("Next")) }
         }
     }
 }

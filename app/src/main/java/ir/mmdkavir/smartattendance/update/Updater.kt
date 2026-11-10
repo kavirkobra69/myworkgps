@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.update
 
+import ir.mmdkavir.smartattendance.i18n.t
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
@@ -135,16 +136,16 @@ object Updater {
             http.newCall(req).execute().use { resp ->
                 when (resp.code) {
                     200 -> Unit
-                    403, 429 -> throw UpdateException("GitHub rate limit reached. Try again in a few minutes.")
-                    404 -> throw UpdateException("No releases found for $REPO.")
-                    else -> throw UpdateException("GitHub answered HTTP ${resp.code}.")
+                    403, 429 -> throw UpdateException(t("GitHub rate limit reached. Try again in a few minutes."))
+                    404 -> throw UpdateException(t("No releases found for %s.", REPO))
+                    else -> throw UpdateException(t("GitHub answered HTTP %s.", resp.code))
                 }
                 resp.body?.string().orEmpty()
             }
         } catch (e: IOException) {
-            throw UpdateException(GitHub.describeNetworkError(e) + " Updates are downloaded from GitHub.")
+            throw UpdateException(GitHub.describeNetworkError(e) + t(" Updates are downloaded from GitHub."))
         }
-        return pickLatest(body) ?: throw UpdateException("No release with an APK file was found.")
+        return pickLatest(body) ?: throw UpdateException(t("No release with an APK file was found."))
     }
 
     private fun fetchSha(url: String): String? = try {
@@ -165,8 +166,8 @@ object Updater {
     }
 
     fun download(context: Context, info: UpdateInfo, onProgress: (Int) -> Unit): File {
-        if (!info.apkUrl.startsWith(DOWNLOAD_PREFIX)) throw UpdateException("The release file is not hosted in the official repository.")
-        if (!APK_NAME.matches(info.apkName)) throw UpdateException("The release file name is not valid.")
+        if (!info.apkUrl.startsWith(DOWNLOAD_PREFIX)) throw UpdateException(t("The release file is not hosted in the official repository."))
+        if (!APK_NAME.matches(info.apkName)) throw UpdateException(t("The release file name is not valid."))
 
         val dir = File(context.cacheDir, "update")
         dir.mkdirs()
@@ -177,8 +178,8 @@ object Updater {
 
         try {
             http.newCall(Request.Builder().url(info.apkUrl).build()).execute().use { resp ->
-                if (!resp.isSuccessful) throw UpdateException("Download failed (HTTP ${resp.code}).")
-                val body = resp.body ?: throw UpdateException("Download failed (empty response).")
+                if (!resp.isSuccessful) throw UpdateException(t("Download failed (HTTP %s).", resp.code))
+                val body = resp.body ?: throw UpdateException(t("Download failed (empty response)."))
                 val total = if (body.contentLength() > 0) body.contentLength() else info.apkSize
                 val digest = MessageDigest.getInstance("SHA-256")
                 var read = 0L
@@ -203,11 +204,11 @@ object Updater {
                     }
                 }
                 if (info.apkSize > 0 && read != info.apkSize) {
-                    throw UpdateException("The download is incomplete ($read of ${info.apkSize} bytes). Try again.")
+                    throw UpdateException(t("The download is incomplete (%s of %s bytes). Try again.", read, info.apkSize))
                 }
                 val actual = digest.digest().joinToString("") { "%02x".format(it) }
                 if (expectedSha != null && !expectedSha.equals(actual, ignoreCase = true)) {
-                    throw UpdateException("The downloaded file is corrupt (SHA-256 mismatch). It was deleted.")
+                    throw UpdateException(t("The downloaded file is corrupt (SHA-256 mismatch). It was deleted."))
                 }
             }
         } catch (e: IOException) {
@@ -219,7 +220,7 @@ object Updater {
         }
         if (!part.renameTo(target)) {
             part.delete()
-            throw UpdateException("Could not save the downloaded file.")
+            throw UpdateException(t("Could not save the downloaded file."))
         }
         return target
     }
@@ -249,30 +250,29 @@ object Updater {
         val pm = context.packageManager
         @Suppress("DEPRECATION")
         val archive = pm.getPackageArchiveInfo(file.path, signingFlag())
-            ?: throw UpdateException("The downloaded file is not a valid APK.")
+            ?: throw UpdateException(t("The downloaded file is not a valid APK."))
         if (archive.packageName != context.packageName) {
-            throw UpdateException("The APK belongs to a different app (${archive.packageName}).")
+            throw UpdateException(t("The APK belongs to a different app (%s).", archive.packageName))
         }
         val installed = pm.getPackageInfo(context.packageName, signingFlag())
         val newCode = PackageInfoCompat.getLongVersionCode(archive)
         val curCode = PackageInfoCompat.getLongVersionCode(installed)
         if (newCode <= curCode) {
-            throw UpdateException("The APK (build $newCode) is not newer than the installed build ($curCode).")
+            throw UpdateException(t("The APK (build %s) is not newer than the installed build (%s).", newCode, curCode))
         }
         val minSdk = archive.applicationInfo?.minSdkVersion ?: 0
         if (minSdk > Build.VERSION.SDK_INT) {
-            throw UpdateException("This update needs Android API $minSdk or newer. Your phone runs API ${Build.VERSION.SDK_INT}.")
+            throw UpdateException(t("This update needs Android API %s or newer. Your phone runs API %s.", minSdk, Build.VERSION.SDK_INT))
         }
         val a = certHashes(archive)
         val b = certHashes(installed)
         if (a.isNotEmpty() && b.isNotEmpty() && a.intersect(b).isEmpty()) {
             throw UpdateException(
-                "The update is signed with a different key than the installed app, so Android will refuse it. " +
-                    "Uninstall the app once and install this version (your settings will be reset)."
+                t("The update is signed with a different key than the installed app, so Android will refuse it. Uninstall the app once and install this version (your settings will be reset).")
             )
         }
-        val integrity = if (info.sha256 != null || info.sha256Url != null) "SHA-256 verified" else "size verified"
-        return "$integrity, same app, build $newCode"
+        val integrity = if (info.sha256 != null || info.sha256Url != null) t("SHA-256 verified") else t("size verified")
+        return t("%s, same app, build %s", integrity, newCode)
     }
 
     fun install(context: Context, apk: File): InstallResult {

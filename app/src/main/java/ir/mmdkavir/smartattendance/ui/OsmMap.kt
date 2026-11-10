@@ -3,7 +3,20 @@ package ir.mmdkavir.smartattendance.ui
 import android.graphics.Color as AColor
 import android.graphics.drawable.GradientDrawable
 import android.location.Location
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import ir.mmdkavir.smartattendance.geo.LocationHelper
+import ir.mmdkavir.smartattendance.i18n.t
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -65,6 +78,14 @@ fun OsmMap(
         }
     }
 
+    val userPoint = user?.let { GeoPoint(it.latitude, it.longitude) }
+    val target = focus ?: workplace ?: userPoint
+    if (target == null) {
+        // No workplace and no accurate fix yet: do not show a map centred on a made-up place.
+        MapWaiting(modifier)
+        return
+    }
+
     AndroidView(
         modifier = modifier,
         factory = { mapView },
@@ -109,7 +130,7 @@ fun OsmMap(
                 val me = Marker(map).apply {
                     position = GeoPoint(user.latitude, user.longitude)
                     icon = dot
-                    title = "You"
+                    title = t("You")
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                 }
                 map.overlays.add(me)
@@ -128,11 +149,33 @@ fun OsmMap(
                 )
             }
 
-            if (focus != null && map.tag != focusToken) {
-                if (map.tag == null) map.controller.setCenter(focus) else map.controller.animateTo(focus)
+            if (map.tag != focusToken) {
+                if (map.tag == null) map.controller.setCenter(target) else map.controller.animateTo(target)
                 map.tag = focusToken
             }
             map.invalidate()
         }
     )
+}
+
+@Composable
+fun MapWaiting(modifier: Modifier) {
+    val context = LocalContext.current
+    val waiting = LocationHelper.hasFine(context) && LocationHelper.isLocationEnabled(context)
+    val message = when {
+        !LocationHelper.hasFine(context) -> t("Location permission is needed to show your position.")
+        !LocationHelper.isLocationEnabled(context) -> t("GPS is turned off. Turn it on to see your position.")
+        else -> t("Waiting for an accurate GPS location…")
+    }
+    Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+            if (waiting) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = if (waiting) 12.dp else 0.dp)
+            )
+        }
+    }
 }

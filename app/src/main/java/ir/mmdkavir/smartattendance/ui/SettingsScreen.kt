@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.ui
 
+import ir.mmdkavir.smartattendance.i18n.t
 import android.content.Context
 import android.os.PowerManager
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import ir.mmdkavir.smartattendance.i18n.GUIDE_FA
+import ir.mmdkavir.smartattendance.i18n.Lang
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -92,8 +95,8 @@ private fun EditDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(values.toList()) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        confirmButton = { TextButton(onClick = { onSave(values.toList()) }) { Text(t("Save")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(t("Cancel")) } }
     )
 }
 
@@ -109,7 +112,7 @@ private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChang
     }
 }
 
-private const val GUIDE = """Android can stop background monitoring in these situations. Here is how to recover from each one.
+private const val GUIDE_EN = """Android can stop background monitoring in these situations. Here is how to recover from each one.
 
 1. Battery optimization / manufacturer restrictions
 Xiaomi, Huawei, Oppo, Vivo, Samsung and others may stop apps in the background.
@@ -160,31 +163,31 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            "Settings",
+            t("Settings"),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(start = 4.dp)
         )
 
         AppCard {
-            Text("Profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(t("Profile"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            InfoRow("Full name", s.name.ifBlank { "—" })
-            InfoRow("Employee ID", s.employeeId.ifBlank { "—" })
-            InfoRow("Workplace", s.workplace.ifBlank { "—" })
-            OutlinedButton(onClick = { dialog = "profile" }, shape = RoundedCornerShape(14.dp)) { Text("Edit profile") }
+            InfoRow(t("Full name"), s.name.ifBlank { "—" })
+            InfoRow(t("Employee ID"), s.employeeId.ifBlank { "—" })
+            InfoRow(t("Workplace"), s.workplace.ifBlank { "—" })
+            OutlinedButton(onClick = { dialog = "profile" }, shape = RoundedCornerShape(14.dp)) { Text(t("Edit profile")) }
         }
 
         AppCard {
-            Text("Workplace & geofence", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(t("Workplace & geofence"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             InfoRow(
-                "Location",
-                if (s.hasLocation) "${"%.5f".format(s.lat)}, ${"%.5f".format(s.lng)}" else "Not set"
+                t("Location"),
+                if (s.hasLocation) String.format(java.util.Locale.US, "%.5f, %.5f", s.lat, s.lng) else t("Not set")
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Geofence radius", style = MaterialTheme.typography.bodyMedium)
-                Text("${radius.roundToInt()} m", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(t("Geofence radius"), style = MaterialTheme.typography.bodyMedium)
+                Text(t("%s m", radius.roundToInt()), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             }
             Slider(
                 value = radius,
@@ -193,8 +196,8 @@ fun SettingsScreen(
                 valueRange = 50f..1000f
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Stay time before recording", style = MaterialTheme.typography.bodyMedium)
-                Text("${dwell.roundToInt()} s", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(t("Stay time before recording"), style = MaterialTheme.typography.bodyMedium)
+                Text(t("%s s", dwell.roundToInt()), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             }
             Slider(
                 value = dwell,
@@ -203,21 +206,21 @@ fun SettingsScreen(
                 valueRange = 0f..300f
             )
             Text(
-                "A short stay time prevents false arrivals from GPS drift. The recorded arrival time is still when you entered the area.",
+                t("A short stay time prevents false arrivals from GPS drift. The recorded arrival time is still when you entered the area."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = { dialog = "workplace" }, shape = RoundedCornerShape(14.dp)) {
-                Text("Change workplace location")
+                Text(t("Change workplace location"))
             }
         }
 
         AppCard {
-            Text("GPS & background monitoring", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(t("GPS & background monitoring"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             ToggleRow(
-                "Automatic attendance",
-                "Detect arrival in the background",
+                t("Automatic attendance"),
+                t("Detect arrival in the background"),
                 s.monitoring
             ) { on ->
                 vm.setMonitoring(on)
@@ -227,16 +230,16 @@ fun SettingsScreen(
                     else if (!batteryOk) actions.openBatterySettings()
                 }
             }
-            InfoRow("GPS (location services)", if (d.gpsOn) "On" else "Off", if (d.gpsOn) StatusColors.ok else StatusColors.error)
-            InfoRow("Precise location", if (d.fine) "Granted" else "Missing", if (d.fine) StatusColors.ok else StatusColors.error)
+            InfoRow(t("GPS (location services)"), if (d.gpsOn) "On" else t("Off"), if (d.gpsOn) StatusColors.ok else StatusColors.error)
+            InfoRow(t("Precise location"), if (d.fine) t("Granted") else t("Missing"), if (d.fine) StatusColors.ok else StatusColors.error)
             InfoRow(
-                "Background location",
-                if (d.background) "Allowed all the time" else "Not allowed",
+                t("Background location"),
+                if (d.background) t("Allowed all the time") else t("Not allowed"),
                 if (d.background) StatusColors.ok else StatusColors.error
             )
             InfoRow(
-                "Geofence",
-                if (s.geoOk) "Registered" else "Not registered",
+                t("Geofence"),
+                if (s.geoOk) t("Registered") else t("Not registered"),
                 if (s.geoOk) StatusColors.ok else StatusColors.warn
             )
             if (!s.geoOk && s.geoError.isNotBlank()) {
@@ -245,15 +248,17 @@ fun SettingsScreen(
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!d.gpsOn) {
-                    Button(onClick = actions.openLocationSettings, shape = RoundedCornerShape(14.dp)) { Text("Location settings") }
+                    Button(onClick = actions.openLocationSettings, shape = RoundedCornerShape(14.dp)) { Text(t("Location settings")) }
                 }
                 if (!d.fine) {
-                    Button(onClick = actions.requestBasic, shape = RoundedCornerShape(14.dp)) { Text("Grant access") }
+                    Button(onClick = actions.requestBasic, shape = RoundedCornerShape(14.dp)) { Text(t("Grant access")) }
                 } else if (!d.background) {
-                    Button(onClick = actions.requestBackground, shape = RoundedCornerShape(14.dp)) { Text("Allow all the time") }
+                    Button(onClick = actions.requestBackground, shape = RoundedCornerShape(14.dp)) { Text(t("Allow all the time")) }
                 }
             }
         }
+
+        AppLanguageCard(vm)
 
         GitHubCard(vm)
 
@@ -262,36 +267,36 @@ fun SettingsScreen(
         MessageFormatCard(vm)
 
         AppCard {
-            Text("Notifications & battery", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(t("Notifications & battery"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             InfoRow(
-                "App notifications",
-                if (d.notifications) "Allowed" else "Blocked",
+                t("App notifications"),
+                if (d.notifications) t("Allowed") else t("Blocked"),
                 if (d.notifications) StatusColors.ok else StatusColors.warn
             )
             InfoRow(
-                "Battery optimization",
-                if (batteryOk) "Not optimized (good)" else "Optimized (may stop monitoring)",
+                t("Battery optimization"),
+                if (batteryOk) t("Not optimized (good)") else t("Optimized (may stop monitoring)"),
                 if (batteryOk) StatusColors.ok else StatusColors.warn
             )
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = actions.openNotificationSettings, shape = RoundedCornerShape(14.dp)) { Text("Notifications") }
-                OutlinedButton(onClick = actions.openBatterySettings, shape = RoundedCornerShape(14.dp)) { Text("Battery") }
+                OutlinedButton(onClick = actions.openNotificationSettings, shape = RoundedCornerShape(14.dp)) { Text(t("Notifications")) }
+                OutlinedButton(onClick = actions.openBatterySettings, shape = RoundedCornerShape(14.dp)) { Text(t("Battery")) }
             }
             Spacer(Modifier.height(4.dp))
-            TextButton(onClick = { dialog = "guide" }) { Text("Battery optimization & recovery guide") }
+            TextButton(onClick = { dialog = "guide" }) { Text(t("Battery optimization & recovery guide")) }
         }
 
         UpdateCard(vm)
 
         AppCard {
-            Text("About", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(t("About"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            InfoRow("Version", BuildConfig.VERSION_NAME)
-            InfoRow("Maps", "© OpenStreetMap contributors")
+            InfoRow(t("Version"), BuildConfig.VERSION_NAME)
+            InfoRow(t("Maps"), t("© OpenStreetMap contributors"))
             Text(
-                "Attendance data stays on this phone. Only the attendance message is sent, by your own GitHub Actions workflow, to your own Telegram chat.",
+                t("Attendance data stays on this phone. Only the attendance message is sent, by your own GitHub Actions workflow, to your own Telegram chat."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -301,16 +306,16 @@ fun SettingsScreen(
 
     when (dialog) {
         "profile" -> EditDialog(
-            "Edit profile",
+            t("Edit profile"),
             listOf(
-                Field("Full name", s.name),
-                Field("Employee ID (optional)", s.employeeId),
-                Field("Workplace name", s.workplace)
+                Field(t("Full name"), s.name),
+                Field(t("Employee ID (optional)"), s.employeeId),
+                Field(t("Workplace name"), s.workplace)
             ),
             onDismiss = { dialog = null }
         ) { v ->
             if (v[0].isBlank() || v[2].isBlank()) {
-                vm.toast("Name and workplace name are required")
+                vm.toast(t("Name and workplace name are required"))
             } else {
                 vm.saveProfile(v[0], v[1], v[2])
                 dialog = null
@@ -319,15 +324,15 @@ fun SettingsScreen(
 
         "guide" -> AlertDialog(
             onDismissRequest = { dialog = null },
-            title = { Text("Reliability guide") },
+            title = { Text(t("Reliability guide")) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(GUIDE, style = MaterialTheme.typography.bodySmall)
+                    Text(if (Lang.isFa) GUIDE_FA else GUIDE_EN, style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = { TextButton(onClick = { dialog = null }) { Text("Close") } },
+            confirmButton = { TextButton(onClick = { dialog = null }) { Text(t("Close")) } },
             dismissButton = {
-                TextButton(onClick = { actions.openBatterySettings() }) { Text("Battery settings") }
+                TextButton(onClick = { actions.openBatterySettings() }) { Text(t("Battery settings")) }
             }
         )
 
@@ -346,9 +351,9 @@ private fun WorkplaceDialog(vm: MainViewModel, actions: PermissionActions, onClo
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "Close") }
+                    IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = t("Close")) }
                     Text(
-                        "Workplace location",
+                        t("Workplace location"),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
@@ -361,11 +366,11 @@ private fun WorkplaceDialog(vm: MainViewModel, actions: PermissionActions, onClo
                                 vm.saveWorkplace(a, b, radius)
                                 onClose()
                             } else {
-                                vm.toast("Select a location first")
+                                vm.toast(t("Select a location first"))
                             }
                         },
                         shape = RoundedCornerShape(14.dp)
-                    ) { Text("Save") }
+                    ) { Text(t("Save")) }
                 }
                 Spacer(Modifier.height(8.dp))
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {

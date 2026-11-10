@@ -66,6 +66,15 @@ interface AttendanceDao {
 
     @Query("UPDATE attendance SET sent = 1 WHERE eventId = :eventId")
     suspend fun markSent(eventId: String)
+
+    @Query("SELECT eventId FROM attendance WHERE id IN (:ids)")
+    suspend fun eventIds(ids: List<Long>): List<String>
+
+    @Query("DELETE FROM attendance WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>): Int
+
+    @Query("DELETE FROM attendance")
+    suspend fun deleteAll(): Int
 }
 
 @Dao
@@ -87,6 +96,12 @@ interface OutboxDao {
 
     @Query("UPDATE outbox SET dispatchedAt = 0, attempts = 0 WHERE id = :id")
     suspend fun resetDispatch(id: Long)
+
+    @Query("DELETE FROM outbox WHERE eventId IN (:eventIds)")
+    suspend fun deleteByEventIds(eventIds: List<String>)
+
+    @Query("DELETE FROM outbox")
+    suspend fun deleteAll()
 
     @Query("SELECT COUNT(*) FROM outbox")
     fun observeCount(): Flow<Int>

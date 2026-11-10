@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.ui
 
+import ir.mmdkavir.smartattendance.i18n.t
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -74,48 +75,48 @@ fun HomeScreen(
 
     val ui: StatusUi = when {
         !s.monitoring -> StatusUi(
-            "Monitoring Paused", "Automatic attendance detection is turned off.",
-            StatusColors.warn, Icons.Default.PauseCircle, "Resume monitoring"
+            t("Monitoring Paused"), t("Automatic attendance detection is turned off."),
+            StatusColors.warn, Icons.Default.PauseCircle, t("Resume monitoring")
         ) { vm.setMonitoring(true) }
 
         status == GeoStatus.PERMISSION && !d.fine -> StatusUi(
-            "Location Permission Required",
-            "Smart Attendance needs location access to detect when you arrive at work.",
-            StatusColors.error, Icons.Default.LocationOff, "Grant permission", actions.requestBasic
+            t("Location Permission Required"),
+            t("Smart Attendance needs location access to detect when you arrive at work."),
+            StatusColors.error, Icons.Default.LocationOff, t("Grant permission"), actions.requestBasic
         )
 
         status == GeoStatus.PERMISSION -> StatusUi(
-            "Location Permission Required",
-            "Choose \"Allow all the time\" so arrival is detected even when the app is closed.",
-            StatusColors.error, Icons.Default.LocationOff, "Allow all the time", actions.requestBackground
+            t("Location Permission Required"),
+            t("Choose \"Allow all the time\" so arrival is detected even when the app is closed."),
+            StatusColors.error, Icons.Default.LocationOff, t("Allow all the time"), actions.requestBackground
         )
 
         status == GeoStatus.GPS_OFF -> StatusUi(
-            "GPS Disabled",
-            "Android location services are off. Turn them on to resume monitoring.",
-            StatusColors.error, Icons.Default.GpsOff, "Open Location Settings", actions.openLocationSettings
+            t("GPS Disabled"),
+            t("Android location services are off. Turn them on to resume monitoring."),
+            StatusColors.error, Icons.Default.GpsOff, t("Open Location Settings"), actions.openLocationSettings
         )
 
         status == GeoStatus.TELEGRAM_ERROR -> StatusUi(
-            "Delivery Error",
-            s.tgError.ifBlank { "Messages could not be delivered." } + " Unsent messages stay queued.",
-            StatusColors.error, Icons.Default.CloudOff, "Open settings to fix"
+            t("Delivery Error"),
+            s.tgError.ifBlank { t("Messages could not be delivered.") } + t(" Unsent messages stay queued."),
+            StatusColors.error, Icons.Default.CloudOff, t("Send test message")
         ) { vm.sendTest() }
 
         status == GeoStatus.INSIDE -> StatusUi(
-            "Inside Workplace", "Monitoring Active. Your arrival is recorded for this visit.",
+            t("Inside Workplace"), t("Monitoring Active. Your arrival is recorded for this visit."),
             StatusColors.ok, Icons.Default.CheckCircle
         )
 
         status == GeoStatus.OUTSIDE -> StatusUi(
-            if (zone == Zone.APPROACHING) "Approaching Workplace" else "Outside Workplace",
-            "Monitoring Active. Attendance is sent automatically when you arrive.",
+            if (zone == Zone.APPROACHING) t("Approaching Workplace") else t("Outside Workplace"),
+            t("Monitoring Active. Attendance is sent automatically when you arrive."),
             if (zone == Zone.APPROACHING) StatusColors.warn else StatusColors.info,
             Icons.Default.Place
         )
 
         else -> StatusUi(
-            "Monitoring Active", "Waiting for a location fix. Arrival detection runs in the background.",
+            t("Monitoring Active"), t("Waiting for a location fix. Arrival detection runs in the background."),
             StatusColors.ok, Icons.Default.Sensors
         )
     }
@@ -131,10 +132,10 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Column(Modifier.padding(horizontal = 4.dp)) {
-            Text("Welcome,", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(s.name.ifBlank { "User" }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(t("Welcome,"), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(s.name.ifBlank { t("User") }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text(
-                "Workplace: ${s.workplace.ifBlank { "Not set" }}",
+                t("Workplace: %s", s.workplace.ifBlank { t("Not set") }),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -176,15 +177,15 @@ fun HomeScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Pill(zoneLabel(zone).substringBefore(" "), zoneColor(zone), Icons.Default.Place)
             Pill(
-                if (d.gpsOn && d.fine) "GPS On" else "GPS Off",
+                if (d.gpsOn && d.fine) t("GPS On") else t("GPS Off"),
                 if (d.gpsOn && d.fine) StatusColors.ok else StatusColors.error,
                 Icons.Default.GpsFixed
             )
             val tgText = when {
-                !s.notifyEnabled -> "Sending Off"
-                s.tgStatus == 1 -> "GitHub OK"
-                s.tgStatus == 2 -> "Delivery Error"
-                else -> "Delivery Untested"
+                !s.notifyEnabled -> t("Sending Off")
+                s.tgStatus == 1 -> t("GitHub OK")
+                s.tgStatus == 2 -> t("Delivery Error")
+                else -> t("Delivery Untested")
             }
             val tgColor = when {
                 !s.notifyEnabled -> MaterialTheme.colorScheme.outline
@@ -196,20 +197,20 @@ fun HomeScreen(
         }
 
         AppCard {
-            Text("Attendance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(t("Attendance"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             InfoRow(
-                "Today",
-                if (todayRecord != null) "Arrived at ${todayRecord.time}" else "No arrival yet",
+                t("Today"),
+                if (todayRecord != null) t("Arrived at %s", todayRecord.time) else t("No arrival yet"),
                 if (todayRecord != null) StatusColors.ok else Color.Unspecified
             )
-            InfoRow("Last arrival", if (s.lastArrival > 0) Fmt.dateTimeStyled(s.lastArrival, s.dateFormat) else "—")
-            InfoRow("Geofence", "${s.radius} m radius")
+            InfoRow(t("Last arrival"), if (s.lastArrival > 0) Fmt.dateTimeStyled(s.lastArrival, s.dateFormat) else "—")
+            InfoRow(t("Geofence"), t("%s m radius", s.radius))
             if (distance != null) {
-                InfoRow("Distance to workplace", if (distance >= 1000) "%.1f km".format(distance / 1000) else "${distance.toInt()} m")
+                InfoRow(t("Distance to workplace"), if (distance >= 1000) t("%.1f km", distance / 1000) else t("%s m", distance.toInt()))
             }
             if (pending > 0) {
-                InfoRow("Waiting to send", "$pending message(s)", StatusColors.warn)
+                InfoRow(t("Waiting to send"), t("%s message(s)", pending), StatusColors.warn)
             }
             if (!s.geoOk && s.geoError.isNotBlank() && s.monitoring) {
                 Spacer(Modifier.height(4.dp))
@@ -218,7 +219,7 @@ fun HomeScreen(
         }
 
         AppCard {
-            Text("Map", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(t("Map"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
             val workplace = if (s.hasLocation) GeoPoint(s.lat, s.lng) else null
             Box(
@@ -235,7 +236,7 @@ fun HomeScreen(
                     workplaceName = s.workplace,
                     user = loc,
                     zone = zone,
-                    focus = workplace,
+                    focus = workplace ?: loc?.let { GeoPoint(it.latitude, it.longitude) },
                     focusToken = 0,
                     interactive = false,
                     zoom = 16.0

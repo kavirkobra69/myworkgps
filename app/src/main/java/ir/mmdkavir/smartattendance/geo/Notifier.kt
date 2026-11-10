@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.geo
 
+import ir.mmdkavir.smartattendance.i18n.t
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
@@ -30,18 +31,18 @@ object Notifier {
     fun ensureChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         nm.createNotificationChannel(
-            NotificationChannel(CH_ATTENDANCE, "Attendance", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Confirmation when your arrival is recorded"
+            NotificationChannel(CH_ATTENDANCE, t("Attendance"), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = t("Confirmation when your arrival is recorded")
             }
         )
         nm.createNotificationChannel(
-            NotificationChannel(CH_MONITOR, "Arrival verification", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Shown briefly while an arrival is being verified"
+            NotificationChannel(CH_MONITOR, t("Arrival verification"), NotificationManager.IMPORTANCE_LOW).apply {
+                description = t("Shown briefly while an arrival is being verified")
             }
         )
         nm.createNotificationChannel(
-            NotificationChannel(CH_ALERT, "Monitoring alerts", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "GPS disabled, permission removed or Telegram problems"
+            NotificationChannel(CH_ALERT, t("Monitoring alerts"), NotificationManager.IMPORTANCE_HIGH).apply {
+                description = t("GPS disabled, permission removed or Telegram problems")
             }
         )
     }
@@ -86,8 +87,8 @@ object Notifier {
         ensureChannels(context)
         return NotificationCompat.Builder(context, CH_MONITOR)
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle("Verifying arrival")
-            .setContentText("Checking your location at the workplace")
+            .setContentTitle(t("Verifying arrival"))
+            .setContentText(t("Checking your location at the workplace"))
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()

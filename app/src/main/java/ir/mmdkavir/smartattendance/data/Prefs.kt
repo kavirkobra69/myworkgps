@@ -2,6 +2,7 @@ package ir.mmdkavir.smartattendance.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import ir.mmdkavir.smartattendance.i18n.Lang
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +21,7 @@ object Keys {
     const val OLD_URL = "worker_url"
     const val OLD_APPKEY = "app_key"
     const val GH_TOKEN = "gh_token"
+    const val APP_LANG = "app_lang"
     const val GH_URL = "gh_repo_url"
     const val GH_OWNER = "gh_owner"
     const val GH_REPO = "gh_repo"
@@ -56,6 +58,7 @@ data class AppSettings(
     val radius: Int = 100,
     val dwellSec: Int = 10,
     val chatId: String = "",
+    val appLang: String = "en",
     val ghRepoUrl: String = "",
     val ghOwner: String = "",
     val ghRepo: String = "",
@@ -94,6 +97,7 @@ object Prefs {
 
     private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         _state.value = read()
+        Lang.code = _state.value.appLang
     }
 
     @Synchronized
@@ -109,6 +113,7 @@ object Prefs {
         sp.edit().remove(Keys.OLD_URL).remove(Keys.OLD_APPKEY).apply()
         sp.registerOnSharedPreferenceChangeListener(listener)
         _state.value = read()
+        Lang.code = _state.value.appLang
     }
 
     private fun create(app: Context): SharedPreferences {
@@ -148,6 +153,7 @@ object Prefs {
         radius = sp.getInt(Keys.RADIUS, 100),
         dwellSec = sp.getInt(Keys.DWELL, 10),
         chatId = sp.getString(Keys.CHAT, "") ?: "",
+        appLang = Lang.normalize(sp.getString(Keys.APP_LANG, null)),
         ghRepoUrl = sp.getString(Keys.GH_URL, "") ?: "",
         ghOwner = sp.getString(Keys.GH_OWNER, "") ?: "",
         ghRepo = sp.getString(Keys.GH_REPO, "") ?: "",

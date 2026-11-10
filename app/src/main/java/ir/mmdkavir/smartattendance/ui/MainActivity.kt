@@ -1,5 +1,6 @@
 package ir.mmdkavir.smartattendance.ui
 
+import ir.mmdkavir.smartattendance.i18n.t
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -81,7 +82,7 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
         try {
             context.startActivity(intent)
         } catch (e: Exception) {
-            vm.toast("Could not open settings on this device")
+            vm.toast(t("Could not open settings on this device"))
         }
     }
 
@@ -118,7 +119,7 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
                     Build.VERSION.SDK_INT == 29 ->
                         backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                     else -> {
-                        vm.toast("Open Permissions → Location and choose \"Allow all the time\"")
+                        vm.toast(t("Open Permissions → Location and choose \"Allow all the time\""))
                         launchSettings(appDetails())
                     }
                 }
@@ -173,10 +174,10 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
         bottomBar = {
             if (settings.setupDone) {
                 val items = listOf(
-                    "Home" to Icons.Default.Home,
-                    "Map" to Icons.Default.Map,
-                    "History" to Icons.Default.History,
-                    "Settings" to Icons.Default.Settings
+                    t("Home") to Icons.Default.Home,
+                    t("Map") to Icons.Default.Map,
+                    t("History") to Icons.Default.History,
+                    t("Settings") to Icons.Default.Settings
                 )
                 NavigationBar {
                     items.forEachIndexed { i, item ->

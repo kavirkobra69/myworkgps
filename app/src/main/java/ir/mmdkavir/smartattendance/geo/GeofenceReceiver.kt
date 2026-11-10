@@ -1,5 +1,7 @@
 package ir.mmdkavir.smartattendance.geo
 
+import ir.mmdkavir.smartattendance.i18n.t
+
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent

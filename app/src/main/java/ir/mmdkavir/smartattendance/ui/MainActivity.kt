@@ -47,8 +47,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ir.mmdkavir.smartattendance.geo.LocationHelper
 
 class MainActivity : ComponentActivity() {
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        bgRequest.value = intent.getBooleanExtra(ir.mmdkavir.smartattendance.bg.BgWidget.EXTRA_ENABLE_BG, false)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        bgRequest.value = intent?.getBooleanExtra(ir.mmdkavir.smartattendance.bg.BgWidget.EXTRA_ENABLE_BG, false) == true
         enableEdgeToEdge()
         setContent {
             AppTheme {
@@ -57,6 +64,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/** Set when the widget sends the user here to grant permissions and turn background mode on. */
+val bgRequest = kotlinx.coroutines.flow.MutableStateFlow(false)
 
 @Composable
 fun AppRoot(vm: MainViewModel = viewModel()) {
@@ -147,6 +157,14 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
                 )
             }
         )
+    }
+
+    val wantBg by bgRequest.collectAsState()
+    LaunchedEffect(wantBg) {
+        if (wantBg) {
+            bgRequest.value = false
+            startBackgroundFlow(context, vm, actions)
+        }
     }
 
     DisposableEffect(lifecycle) {

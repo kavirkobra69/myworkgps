@@ -43,7 +43,8 @@ class SendWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val repo = RepoRef(s.ghOwner, s.ghRepo)
         var retry = false
 
-        for (item in db.outbox().all()) {
+        val items = db.outbox().all()
+        for (item in items) {
             try {
                 withContext(Dispatchers.IO) { deliver(item, token, repo, s.ghBranch) }
             } catch (e: Waiting) {
@@ -61,6 +62,9 @@ class SendWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                     return Result.success()
                 }
             }
+        }
+        if (!retry && items.isNotEmpty()) {
+            Prefs.edit { putLong(ir.mmdkavir.smartattendance.data.Keys.BG_SYNC_AT, System.currentTimeMillis()) }
         }
         return if (retry) Result.retry() else Result.success()
     }

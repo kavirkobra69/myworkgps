@@ -25,7 +25,7 @@ object Monitor {
         val app = context.applicationContext
         Prefs.init(app)
         GeofenceController.unregister(app)
-        WatchdogWorker.cancel(app)
+        if (!Prefs.now().bgMode) WatchdogWorker.cancel(app)
         androidx.work.WorkManager.getInstance(app).cancelUniqueWork("send_outbox")
         app.stopService(Intent(app, VerifyService::class.java))
         Notifier.clear(app, Notifier.ID_PERMISSION)

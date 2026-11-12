@@ -218,6 +218,8 @@ fun HomeScreen(
             }
         }
 
+        BackgroundCard(vm, s, actions)
+
         AppCard {
             Text(t("Map"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))

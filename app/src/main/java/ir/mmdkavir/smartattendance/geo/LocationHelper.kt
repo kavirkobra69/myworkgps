@@ -104,15 +104,21 @@ object LocationHelper {
     }
 
     @SuppressLint("MissingPermission")
-    fun updates(context: Context, intervalMs: Long = 5_000L): Flow<Location> = callbackFlow {
+    fun updates(
+        context: Context,
+        intervalMs: Long = 5_000L,
+        priority: Int = Priority.PRIORITY_HIGH_ACCURACY,
+        minDistanceM: Float = 0f
+    ): Flow<Location> = callbackFlow {
         if (!hasFine(context) && !hasCoarse(context)) {
             close()
             return@callbackFlow
         }
         if (playServicesOk(context)) {
             val client = LocationServices.getFusedLocationProviderClient(context)
-            val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
+            val request = LocationRequest.Builder(priority, intervalMs)
                 .setMinUpdateIntervalMillis(intervalMs / 2)
+                .setMinUpdateDistanceMeters(minDistanceM)
                 .build()
             val callback = object : LocationCallback() {
                 override fun onLocationResult(result: LocationResult) {
@@ -126,7 +132,7 @@ object LocationHelper {
             val listener = SimpleListener { trySend(it) }
             listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
                 .filter { lm.isProviderEnabled(it) }
-                .forEach { lm.requestLocationUpdates(it, intervalMs, 0f, listener, Looper.getMainLooper()) }
+                .forEach { lm.requestLocationUpdates(it, intervalMs, minDistanceM, listener, Looper.getMainLooper()) }
             awaitClose { lm.removeUpdates(listener) }
         }
     }

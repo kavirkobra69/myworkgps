@@ -46,6 +46,12 @@ object Keys {
     const val MSG_LANG = "msg_lang"
     const val DATE_FMT = "date_format"
     const val ENTER_AT = "enter_at"
+    const val BG_ON = "bg_mode"
+    const val BG_LAT = "bg_lat_bits"
+    const val BG_LNG = "bg_lng_bits"
+    const val BG_LOC_AT = "bg_loc_at"
+    const val BG_SYNC_AT = "bg_sync_at"
+    const val BG_STATUS = "bg_status"
 }
 
 data class AppSettings(
@@ -83,8 +89,17 @@ data class AppSettings(
     val gpsOffSeen: Boolean = false,
     val msgLang: String = "en",
     val dateFormat: String = "gregorian",
-    val enterAt: Long = 0L
+    val enterAt: Long = 0L,
+    val bgMode: Boolean = false,
+    val bgLat: Double = 0.0,
+    val bgLng: Double = 0.0,
+    val bgLocAt: Long = 0L,
+    val bgSyncAt: Long = 0L,
+    val bgStatus: String = "off"
 ) {
+    val gpsTracking: Boolean get() = bgMode
+    val networkSync: Boolean get() = bgMode
+    val hasBgLocation: Boolean get() = bgLocAt > 0L
     val ghReady: Boolean get() = hasGhToken && ghOwner.isNotBlank() && ghRepo.isNotBlank() && ghBranch.isNotBlank()
 }
 
@@ -178,6 +193,12 @@ object Prefs {
         gpsOffSeen = sp.getBoolean(Keys.GPS_OFF, false),
         msgLang = sp.getString(Keys.MSG_LANG, "en") ?: "en",
         dateFormat = sp.getString(Keys.DATE_FMT, "gregorian") ?: "gregorian",
-        enterAt = sp.getLong(Keys.ENTER_AT, 0L)
+        enterAt = sp.getLong(Keys.ENTER_AT, 0L),
+        bgMode = sp.getBoolean(Keys.BG_ON, false),
+        bgLat = Double.fromBits(sp.getLong(Keys.BG_LAT, 0L)),
+        bgLng = Double.fromBits(sp.getLong(Keys.BG_LNG, 0L)),
+        bgLocAt = sp.getLong(Keys.BG_LOC_AT, 0L),
+        bgSyncAt = sp.getLong(Keys.BG_SYNC_AT, 0L),
+        bgStatus = sp.getString(Keys.BG_STATUS, "off") ?: "off"
     )
 }

@@ -104,6 +104,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _message.value = text
     }
 
+    /** Set while the user is being asked for permissions to turn background mode on; completes the flow on grant. */
+    var pendingBg = false
+
+    fun setBackgroundMode(on: Boolean) {
+        val c = getApplication<Application>()
+        pendingBg = false
+        if (on) {
+            if (!ir.mmdkavir.smartattendance.bg.BackgroundMode.enable(c)) toast(t("Allow location \"All the time\" first"))
+        } else {
+            ir.mmdkavir.smartattendance.bg.BackgroundMode.disable(c)
+        }
+    }
+
     fun refreshDevice(notificationsGranted: Boolean) {
         val c = getApplication<Application>()
         _device.value = Device(
@@ -113,6 +126,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             notifications = notificationsGranted
         )
         if (Prefs.now().setupDone) ir.mmdkavir.smartattendance.geo.GeofenceController.ensure(c)
+        val bg = ir.mmdkavir.smartattendance.bg.BackgroundMode
+        if (pendingBg && bg.permissionsOk(c)) setBackgroundMode(true) else bg.recover(c)
+        ir.mmdkavir.smartattendance.bg.BgWidget.refresh(c)
     }
 
     private fun Location.toFix() = Fix(latitude, longitude, if (hasAccuracy()) accuracy else 0f, elapsedRealtimeNanos / 1_000_000L)

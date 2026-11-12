@@ -21,6 +21,7 @@ class WatchdogWorker(context: Context, params: WorkerParameters) : CoroutineWork
         if (Prefs.now().notifyEnabled && AppDb.get(app).outbox().all().isNotEmpty()) {
             SendWorker.enqueue(app)
         }
+        ir.mmdkavir.smartattendance.bg.BackgroundMode.recover(app)
         AttendanceEngine.periodicCheck(app)
         return Result.success()
     }

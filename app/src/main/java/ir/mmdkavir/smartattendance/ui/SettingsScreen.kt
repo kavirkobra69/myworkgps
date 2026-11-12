@@ -101,7 +101,7 @@ private fun EditDialog(
 }
 
 @Composable
-private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -257,6 +257,8 @@ fun SettingsScreen(
                 }
             }
         }
+
+        BackgroundCard(vm, s, actions)
 
         AppLanguageCard(vm)
 

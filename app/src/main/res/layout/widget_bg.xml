@@ -23,10 +23,11 @@
         android:textSize="11sp"
         android:textStyle="bold" />
 
-    <View
+    <ImageView
         android:id="@+id/widget_dot"
         android:layout_width="10dp"
         android:layout_height="10dp"
         android:layout_gravity="top|end"
+        android:importantForAccessibility="no"
         android:background="@drawable/widget_dot_off" />
 </FrameLayout>

@@ -60,7 +60,9 @@ object BackgroundMode {
         Prefs.edit {
             putBoolean(Keys.BG_ON, true)
             putString(Keys.BG_STATUS, ST_SEARCHING)
+            putBoolean(Keys.MONITOR, true)
         }
+        ir.mmdkavir.smartattendance.geo.Monitor.start(app)
         WatchdogWorker.schedule(app)
         start(app)
         BgWidget.refresh(app)
@@ -73,7 +75,9 @@ object BackgroundMode {
         Prefs.edit {
             putBoolean(Keys.BG_ON, false)
             putString(Keys.BG_STATUS, ST_OFF)
+            putBoolean(Keys.MONITOR, false)
         }
+        ir.mmdkavir.smartattendance.geo.Monitor.stop(app)
         app.stopService(Intent(app, TrackingService::class.java))
         _alive.value = false
         val s = Prefs.now()

@@ -57,6 +57,7 @@ object BackgroundMode {
         val app = context.applicationContext
         Prefs.init(app)
         if (!permissionsOk(app)) return false
+        LocationHelper.trySilentEnable(app)
         Prefs.edit {
             putBoolean(Keys.BG_ON, true)
             putString(Keys.BG_STATUS, ST_SEARCHING)

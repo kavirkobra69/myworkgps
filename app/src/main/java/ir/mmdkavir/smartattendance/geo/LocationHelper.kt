@@ -60,6 +60,21 @@ object LocationHelper {
         return LocationManagerCompat.isLocationEnabled(lm)
     }
 
+    fun canWriteSecure(context: Context): Boolean =
+        granted(context, "android.permission.WRITE_SECURE_SETTINGS")
+
+    /** Only possible after the user granted WRITE_SECURE_SETTINGS once through adb; otherwise returns false. */
+    fun trySilentEnable(context: Context): Boolean {
+        if (isLocationEnabled(context)) return true
+        if (!canWriteSecure(context)) return false
+        return try {
+            android.provider.Settings.Secure.putInt(context.contentResolver, "location_mode", 3)
+            isLocationEnabled(context)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun playServicesOk(context: Context): Boolean =
         GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS
 

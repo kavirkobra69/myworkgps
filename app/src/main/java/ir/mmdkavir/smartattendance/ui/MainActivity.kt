@@ -127,21 +127,38 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
 
     val actions = remember {
         val enableLocation = {
-            val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10_000L).build()
-            val settings = LocationSettingsRequest.Builder().addLocationRequest(request).setAlwaysShow(true).build()
-            LocationServices.getSettingsClient(context).checkLocationSettings(settings)
-                .addOnSuccessListener { refresh() }
-                .addOnFailureListener { e ->
-                    try {
-                        if (e is ResolvableApiException) {
-                            locationLauncher.launch(IntentSenderRequest.Builder(e.resolution).build())
-                        } else {
-                            launchSettings(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-                        }
-                    } catch (x: Exception) {
+            if (LocationHelper.trySilentEnable(context)) {
+                if (vm.pendingBg) vm.setBackgroundMode(true)
+                refresh()
+            } else {
+                var handled = false
+                val openSettings = {
+                    if (!handled) {
+                        handled = true
                         launchSettings(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                     }
                 }
+                val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10_000L).build()
+                val settings = LocationSettingsRequest.Builder().addLocationRequest(request).setAlwaysShow(true).build()
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ openSettings() }, 3_000L)
+                try {
+                    LocationServices.getSettingsClient(context).checkLocationSettings(settings)
+                        .addOnSuccessListener { handled = true; refresh() }
+                        .addOnFailureListener { e ->
+                            if (handled) return@addOnFailureListener
+                            try {
+                                if (e is ResolvableApiException) {
+                                    handled = true
+                                    locationLauncher.launch(IntentSenderRequest.Builder(e.resolution).build())
+                                } else openSettings()
+                            } catch (x: Exception) {
+                                openSettings()
+                            }
+                        }
+                } catch (e: Exception) {
+                    openSettings()
+                }
+            }
             Unit
         }
         askLocation = enableLocation

@@ -62,6 +62,7 @@ class PermissionActions(
     val requestBasic: () -> Unit,
     val requestBackground: () -> Unit,
     val openLocationSettings: () -> Unit,
+    val enableLocation: () -> Unit,
     val openAppSettings: () -> Unit,
     val openBatterySettings: () -> Unit,
     val openNotificationSettings: () -> Unit

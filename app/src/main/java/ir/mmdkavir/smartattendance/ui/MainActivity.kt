@@ -8,6 +8,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import androidx.activity.result.IntentSenderRequest
+import com.google.android.gms.common.api.ResolvableApiException
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
+import com.google.android.gms.location.Priority
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -83,9 +89,14 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
 
+    var askLocation: () -> Unit = {}
+
     fun refresh() {
         vm.refreshDevice(notificationsGranted())
         vm.startLocationUpdates()
+        if (vm.pendingBg && ir.mmdkavir.smartattendance.bg.BackgroundMode.permissionsOk(context) &&
+            !LocationHelper.isLocationEnabled(context)
+        ) askLocation()
     }
 
     fun launchSettings(intent: Intent) {
@@ -107,7 +118,33 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
         ActivityResultContracts.RequestPermission()
     ) { refresh() }
 
+    val locationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) {
+        if (vm.pendingBg && ir.mmdkavir.smartattendance.bg.BackgroundMode.permissionsOk(context)) vm.setBackgroundMode(true)
+        refresh()
+    }
+
     val actions = remember {
+        val enableLocation = {
+            val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10_000L).build()
+            val settings = LocationSettingsRequest.Builder().addLocationRequest(request).setAlwaysShow(true).build()
+            LocationServices.getSettingsClient(context).checkLocationSettings(settings)
+                .addOnSuccessListener { refresh() }
+                .addOnFailureListener { e ->
+                    try {
+                        if (e is ResolvableApiException) {
+                            locationLauncher.launch(IntentSenderRequest.Builder(e.resolution).build())
+                        } else {
+                            launchSettings(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                        }
+                    } catch (x: Exception) {
+                        launchSettings(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                    }
+                }
+            Unit
+        }
+        askLocation = enableLocation
         PermissionActions(
             requestBasic = {
                 val wanted = mutableListOf(
@@ -134,6 +171,7 @@ fun AppRoot(vm: MainViewModel = viewModel()) {
                     }
                 }
             },
+            enableLocation = enableLocation,
             openLocationSettings = { launchSettings(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) },
             openAppSettings = { launchSettings(appDetails()) },
             openBatterySettings = {

@@ -84,8 +84,8 @@ class BgWidget : AppWidgetProvider() {
         private fun tapIntent(app: Context, state: BgUiState): PendingIntent {
             val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             val enabled = Prefs.now().bgMode
-            if (!enabled && !BackgroundMode.permissionsOk(app)) {
-                // Permissions are requested only through the app UI.
+            if (!enabled && (!BackgroundMode.permissionsOk(app) || !ir.mmdkavir.smartattendance.geo.LocationHelper.isLocationEnabled(app))) {
+                // Permissions and the location-services prompt are shown only through the app UI.
                 return PendingIntent.getActivity(
                     app, 10,
                     Intent(app, MainActivity::class.java)

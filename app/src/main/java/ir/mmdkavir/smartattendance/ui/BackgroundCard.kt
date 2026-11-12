@@ -27,6 +27,7 @@ fun startBackgroundFlow(context: Context, vm: MainViewModel, actions: Permission
     when {
         !ir.mmdkavir.smartattendance.geo.LocationHelper.hasFine(context) -> { vm.pendingBg = true; actions.requestBasic() }
         !ir.mmdkavir.smartattendance.geo.LocationHelper.hasBackground(context) -> { vm.pendingBg = true; actions.requestBackground() }
+        !ir.mmdkavir.smartattendance.geo.LocationHelper.isLocationEnabled(context) -> { vm.pendingBg = true; actions.enableLocation() }
         else -> vm.setBackgroundMode(true)
     }
 }

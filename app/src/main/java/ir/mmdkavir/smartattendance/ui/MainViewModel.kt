@@ -127,7 +127,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
         if (Prefs.now().setupDone) ir.mmdkavir.smartattendance.geo.GeofenceController.ensure(c)
         val bg = ir.mmdkavir.smartattendance.bg.BackgroundMode
-        if (pendingBg && bg.permissionsOk(c)) setBackgroundMode(true) else bg.recover(c)
+        if (pendingBg && bg.permissionsOk(c) && ir.mmdkavir.smartattendance.geo.LocationHelper.isLocationEnabled(c)) setBackgroundMode(true) else bg.recover(c)
         ir.mmdkavir.smartattendance.bg.BgWidget.refresh(c)
     }
 

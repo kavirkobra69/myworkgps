@@ -36,14 +36,15 @@ class SendWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         val app = applicationContext
         Prefs.init(app)
         val s = Prefs.now()
-        if (!s.monitoring || !s.notifyEnabled || !s.ghReady) return Result.success()
+        if (!s.notifyEnabled || !s.ghReady) return Result.success()
 
         val db = AppDb.get(app)
         val token = Prefs.ghToken()
         val repo = RepoRef(s.ghOwner, s.ghRepo)
         var retry = false
 
-        val items = db.outbox().all()
+        // Exit-widget messages ("x…") are sent even while monitoring is off; arrivals only while it is on.
+        val items = db.outbox().all().filter { s.monitoring || it.eventId.startsWith("x") }
         for (item in items) {
             try {
                 withContext(Dispatchers.IO) { deliver(item, token, repo, s.ghBranch) }

@@ -67,11 +67,13 @@ object AttendanceEngine {
                 putLong(Keys.LAST_ARRIVAL, arrival)
             }
 
-            if (s.notifyEnabled && s.ghReady) {
+            // Registered people: report only the enabled ones; if all are disabled nobody is reported.
+            val people = if (db.people().count() > 0) db.people().enabledNames() else null
+            if (s.notifyEnabled && s.ghReady && (people == null || people.isNotEmpty())) {
                 db.outbox().insert(
                     OutboxItem(
                         eventId = record.eventId,
-                        text = Payload.toJson(Payload.arrival(s, record)),
+                        text = Payload.toJson(Payload.arrival(s, record, people)),
                         createdAt = now
                     )
                 )

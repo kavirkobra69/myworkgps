@@ -4,8 +4,8 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val appVersionName = "1.4.3"
-val appVersionCode = 8
+val appVersionName = "1.5.0"
+val appVersionCode = 9
 
 android {
     namespace = "ir.mmdkavir.smartattendance"

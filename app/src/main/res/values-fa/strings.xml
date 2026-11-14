@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">حضور هوشمند</string>
     <string name="widget_description">کلید حالت پس‌زمینه</string>
+    <string name="widget_exit_description">ارسال پیام خروج از محل کار</string>
 </resources>

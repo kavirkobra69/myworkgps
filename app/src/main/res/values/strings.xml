@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">Smart Attendance</string>
     <string name="widget_description">Background mode switch</string>
+    <string name="widget_exit_description">Send a message that I left work</string>
 </resources>

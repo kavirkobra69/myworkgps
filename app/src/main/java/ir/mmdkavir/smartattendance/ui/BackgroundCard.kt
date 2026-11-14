@@ -81,6 +81,12 @@ fun BackgroundCard(vm: MainViewModel, s: AppSettings, actions: PermissionActions
                     },
                     shape = RoundedCornerShape(14.dp)
                 ) { Text(t("Add 1×1 widget")) }
+                OutlinedButton(
+                    onClick = {
+                        if (!ir.mmdkavir.smartattendance.bg.ExitWidget.requestPin(context)) vm.toast(t("Could not add the widget. Add it from your home screen widgets list."))
+                    },
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text(t("Add exit widget")) }
             }
         }
         Text(

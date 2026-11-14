@@ -52,6 +52,7 @@ object Keys {
     const val BG_LOC_AT = "bg_loc_at"
     const val BG_SYNC_AT = "bg_sync_at"
     const val BG_STATUS = "bg_status"
+    const val EXIT_TAP = "exit_tap_at"
 }
 
 data class AppSettings(
@@ -95,7 +96,8 @@ data class AppSettings(
     val bgLng: Double = 0.0,
     val bgLocAt: Long = 0L,
     val bgSyncAt: Long = 0L,
-    val bgStatus: String = "off"
+    val bgStatus: String = "off",
+    val exitTapAt: Long = 0L
 ) {
     val gpsTracking: Boolean get() = bgMode
     val networkSync: Boolean get() = bgMode
@@ -199,6 +201,7 @@ object Prefs {
         bgLng = Double.fromBits(sp.getLong(Keys.BG_LNG, 0L)),
         bgLocAt = sp.getLong(Keys.BG_LOC_AT, 0L),
         bgSyncAt = sp.getLong(Keys.BG_SYNC_AT, 0L),
-        bgStatus = sp.getString(Keys.BG_STATUS, "off") ?: "off"
+        bgStatus = sp.getString(Keys.BG_STATUS, "off") ?: "off",
+        exitTapAt = sp.getLong(Keys.EXIT_TAP, 0L)
     )
 }

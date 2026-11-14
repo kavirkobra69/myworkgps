@@ -10,7 +10,7 @@ on:
         description: Unique id of this attendance event
         required: true
       kind:
-        description: arrival or test
+        description: arrival, exit or test
         required: true
         default: arrival
       lang:
@@ -30,7 +30,7 @@ on:
         description: Date (Gregorian or Jalali, as formatted by the app)
         required: false
       time:
-        description: Arrival time
+        description: Arrival or exit time
         required: false
       lat:
         description: Latitude
@@ -87,6 +87,12 @@ jobs:
               TEXT="Smart Attendance test message"
               [ -n "$NAME" ] && TEXT="$TEXT"$'\n\n'"Name: $NAME"
               TEXT="$TEXT"$'\n\n'"The GitHub Actions to Telegram connection is working."
+            fi
+          elif [ "${IN_KIND:-arrival}" = "exit" ]; then
+            if [ "${IN_LANG:-en}" = "fa" ]; then
+              TEXT="خروج از محل کار"$'\n\n'"نام: $NAME"$'\n'"تاریخ: $DATE"$'\n'"ساعت خروج: $TIME"$'\n\n'"وضعیت: خارج شد"
+            else
+              TEXT="WORK EXIT"$'\n\n'"Name: $NAME"$'\n'"Date: $DATE"$'\n'"Exit Time: $TIME"$'\n\n'"Status: LEFT WORK"
             fi
           else
             if ! [[ "${IN_LAT:-}" =~ $NUM ]] || ! [[ "${IN_LNG:-}" =~ $NUM ]]; then

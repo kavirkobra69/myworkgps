@@ -10,6 +10,7 @@ import ir.mmdkavir.smartattendance.data.AppDb
 import ir.mmdkavir.smartattendance.data.AppSettings
 import ir.mmdkavir.smartattendance.data.AttendanceRecord
 import ir.mmdkavir.smartattendance.data.Keys
+import ir.mmdkavir.smartattendance.data.Person
 import ir.mmdkavir.smartattendance.data.Prefs
 import ir.mmdkavir.smartattendance.geo.LocationHelper
 import ir.mmdkavir.smartattendance.geo.Monitor
@@ -63,6 +64,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val settings: StateFlow<AppSettings> = Prefs.state
 
     val records: StateFlow<List<AttendanceRecord>> = db.attendance().observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val people: StateFlow<List<Person>> = db.people().observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val pending: StateFlow<Int> = db.outbox().observeCount()
@@ -182,6 +186,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         Prefs.edit { putString(Keys.APP_LANG, Lang.normalize(lang)) }
         ir.mmdkavir.smartattendance.geo.Notifier.ensureChannels(c)
         if (Prefs.now().setupDone) ir.mmdkavir.smartattendance.geo.GeofenceController.ensure(c)
+    }
+
+    fun addPerson(rawName: String): Boolean {
+        val name = rawName.trim().replace(Regex("\\s+"), " ").take(60)
+        if (name.isEmpty()) { toast(t("Enter a name first")); return false }
+        if (people.value.any { it.name.equals(name, ignoreCase = true) }) {
+            toast(t("This name is already in the list")); return false
+        }
+        viewModelScope.launch(Dispatchers.IO) { db.people().insert(Person(name = name)) }
+        return true
+    }
+
+    fun setPersonEnabled(id: Long, enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { db.people().setEnabled(id, enabled) }
+    }
+
+    fun deletePerson(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) { db.people().delete(id) }
     }
 
     /** Removes records from this phone's history only. Telegram messages and GitHub runs are untouched. */

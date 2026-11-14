@@ -44,6 +44,34 @@ data class OutboxItem(
     @ColumnInfo(defaultValue = "0") val dispatches: Int = 0
 )
 
+@Entity(tableName = "people")
+data class Person(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val enabled: Boolean = true
+)
+
+@Dao
+interface PeopleDao {
+    @Insert
+    suspend fun insert(person: Person): Long
+
+    @Query("SELECT * FROM people ORDER BY id")
+    fun observeAll(): Flow<List<Person>>
+
+    @Query("SELECT COUNT(*) FROM people")
+    suspend fun count(): Int
+
+    @Query("SELECT name FROM people WHERE enabled = 1 ORDER BY id")
+    suspend fun enabledNames(): List<String>
+
+    @Query("UPDATE people SET enabled = :enabled WHERE id = :id")
+    suspend fun setEnabled(id: Long, enabled: Boolean)
+
+    @Query("DELETE FROM people WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
 @Dao
 interface AttendanceDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -107,10 +135,11 @@ interface OutboxDao {
     fun observeCount(): Flow<Int>
 }
 
-@Database(entities = [AttendanceRecord::class, OutboxItem::class], version = 2, exportSchema = false)
+@Database(entities = [AttendanceRecord::class, OutboxItem::class, Person::class], version = 3, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun attendance(): AttendanceDao
     abstract fun outbox(): OutboxDao
+    abstract fun people(): PeopleDao
 
     companion object {
         @Volatile
@@ -125,13 +154,22 @@ abstract class AppDb : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "name TEXT NOT NULL, enabled INTEGER NOT NULL)"
+                )
+            }
+        }
+
         fun get(context: Context): AppDb =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDb::class.java,
                     "attendance.db"
-                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
             }
     }
 }

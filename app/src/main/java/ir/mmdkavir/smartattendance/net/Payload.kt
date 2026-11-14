@@ -19,16 +19,28 @@ object Payload {
 
     fun coord(value: Double): String = String.format(Locale.US, "%.7f", value).trimEnd('0').trimEnd('.')
 
-    fun arrival(s: AppSettings, r: AttendanceRecord): Map<String, String> = linkedMapOf(
+    /**
+     * [people] is the list of enabled registered people. When it is null (nobody registered) the message keeps
+     * the single name and employee id from settings; otherwise every listed person is reported.
+     */
+    fun arrival(s: AppSettings, r: AttendanceRecord, people: List<String>? = null): Map<String, String> = linkedMapOf(
         "kind" to "arrival",
         "lang" to if (s.msgLang == "fa") "fa" else "en",
-        "name" to s.name,
-        "employee_id" to s.employeeId,
+        "name" to (people?.joinToString(", ") ?: s.name),
+        "employee_id" to if (people != null) "" else s.employeeId,
         "workplace" to r.workplace,
         "date" to recordDate(r, s.dateFormat),
         "time" to r.time,
         "lat" to coord(r.lat),
         "lng" to coord(r.lng)
+    )
+
+    fun exit(s: AppSettings, ms: Long): Map<String, String> = linkedMapOf(
+        "kind" to "exit",
+        "lang" to if (s.msgLang == "fa") "fa" else "en",
+        "name" to s.name,
+        "date" to Fmt.dateStyled(ms, s.dateFormat),
+        "time" to Fmt.time(ms)
     )
 
     fun test(s: AppSettings): Map<String, String> = linkedMapOf(

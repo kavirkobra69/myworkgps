@@ -260,6 +260,8 @@ fun SettingsScreen(
 
         BackgroundCard(vm, s, actions)
 
+        PeopleCard(vm)
+
         AppLanguageCard(vm)
 
         GitHubCard(vm)

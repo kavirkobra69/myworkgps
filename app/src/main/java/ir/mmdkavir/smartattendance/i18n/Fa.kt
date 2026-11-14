@@ -398,7 +398,24 @@ object Fa {
         "active" to "فعال",
         "inactive" to "غیرفعال",
         "just now" to "همین الان",
-        "needs attention" to "نیازمند توجه"
+        "needs attention" to "نیازمند توجه",
+        "People" to "افراد",
+        "Arrival messages list every enabled person. A disabled person is never reported. With nobody added, your name from the settings is used." to "پیام ورود نام همه‌ی افراد فعال را فهرست می‌کند. فرد غیرفعال هرگز گزارش نمی‌شود. اگر کسی اضافه نشده باشد، نام شما از تنظیمات استفاده می‌شود.",
+        "No people added yet" to "هنوز کسی اضافه نشده است",
+        "Tracking on" to "ردیابی روشن",
+        "Tracking off" to "ردیابی خاموش",
+        "Delete person" to "حذف فرد",
+        "Person name" to "نام فرد",
+        "Add" to "افزودن",
+        "Enter a name first" to "ابتدا یک نام وارد کنید",
+        "This name is already in the list" to "این نام قبلاً در فهرست هست",
+        "Add exit widget" to "افزودن ویجت خروج",
+        "EXIT" to "خروج",
+        "Send a message that I left work" to "ارسال پیام خروج از محل کار",
+        "Set up GitHub and Telegram in the app first" to "ابتدا GitHub و تلگرام را در برنامه تنظیم کنید",
+        "Exit message already sent or queued" to "پیام خروج قبلاً ارسال شده یا در صف است",
+        "Exit recorded at %s" to "خروج در ساعت %s ثبت شد",
+        "Could not send the exit message" to "ارسال پیام خروج ممکن نشد",
     )
 }
 

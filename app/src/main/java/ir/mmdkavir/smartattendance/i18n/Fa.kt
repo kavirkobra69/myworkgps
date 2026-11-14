@@ -422,6 +422,8 @@ object Fa {
         "%s: tracking on" to "%s: ردیابی روشن شد",
         "Could not complete the widget action" to "انجام عملیات ویجت ممکن نشد",
         "Add widget" to "افزودن ویجت",
+        "Previous page" to "صفحه‌ی قبل",
+        "Next page" to "صفحه‌ی بعد",
     )
 }
 

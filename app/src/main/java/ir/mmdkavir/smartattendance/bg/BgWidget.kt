@@ -7,32 +7,35 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.widget.RemoteViews
 import android.os.Handler
 import android.os.Looper
+import android.widget.RemoteViews
 import android.widget.Toast
+import ir.mmdkavir.smartattendance.R
 import ir.mmdkavir.smartattendance.data.AppDb
+import ir.mmdkavir.smartattendance.data.Keys
+import ir.mmdkavir.smartattendance.data.Person
+import ir.mmdkavir.smartattendance.data.Prefs
 import ir.mmdkavir.smartattendance.geo.LocationHelper
+import ir.mmdkavir.smartattendance.geo.Notifier
+import ir.mmdkavir.smartattendance.i18n.t
 import ir.mmdkavir.smartattendance.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import ir.mmdkavir.smartattendance.R
-import ir.mmdkavir.smartattendance.data.Prefs
-import ir.mmdkavir.smartattendance.geo.Notifier
-import ir.mmdkavir.smartattendance.i18n.t
+import java.util.Locale
 
-/** Multi-page home-screen widget: ON/OFF, EXIT, then one page per person. State is read from the real service. */
+/**
+ * Home-screen widget with fixed pages: 1 = ON/OFF, 2 = EXIT, 3… = one page per person. The current page is drawn
+ * completely in one RemoteViews (no collection view), with ‹ › arrows to move between pages.
+ */
 class BgWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         val app = context.applicationContext
         Prefs.init(app)
         BackgroundMode.recover(app)
-        ids.forEach { manager.updateAppWidget(it, build(app, it)) }
-        manager.notifyAppWidgetViewDataChanged(ids, R.id.pages)
+        refresh(app)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -43,12 +46,28 @@ class BgWidget : AppWidgetProvider() {
                 if (!BackgroundMode.enable(app)) askPermissions(app)
             }
             ACTION_DISABLE -> BackgroundMode.disable(app)
+            ACTION_NEXT -> movePage(app, 1)
+            ACTION_PREV -> movePage(app, -1)
             ACTION_PAGE -> onPageTap(app, intent)
             else -> super.onReceive(context, intent)
         }
     }
 
-    /** A tap on a page. Handled in the receiver (no activity is launched), so the stack is not disturbed. */
+    private fun movePage(app: Context, step: Int) {
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val count = 2 + AppDb.get(app).people().all().size
+                val page = ((Prefs.now().widgetPage + step) % count + count) % count
+                Prefs.edit { putInt(Keys.WIDGET_PAGE, page) }
+                refresh(app)
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+
+    /** A tap on the current page. */
     private fun onPageTap(app: Context, intent: Intent) {
         val id = intent.getLongExtra(EXTRA_ID, 0L)
         when (intent.getStringExtra(EXTRA_KIND)) {
@@ -114,34 +133,90 @@ class BgWidget : AppWidgetProvider() {
         const val ACTION_DISABLE = "ir.mmdkavir.smartattendance.BG_DISABLE"
         const val EXTRA_ENABLE_BG = "enable_background_mode"
         const val ACTION_PAGE = "ir.mmdkavir.smartattendance.WIDGET_PAGE"
+        const val ACTION_NEXT = "ir.mmdkavir.smartattendance.WIDGET_NEXT"
+        const val ACTION_PREV = "ir.mmdkavir.smartattendance.WIDGET_PREV"
         const val EXTRA_KIND = "page_kind"
         const val EXTRA_ID = "page_id"
         const val KIND_BG = "bg"
         const val KIND_EXIT = "exit"
         const val KIND_PERSON = "person"
 
-        /** Re-renders every placed widget and reloads its pages (called when state or the people list changes). */
+        /** Redraws every placed widget from the real state (service, people list, current page). */
         fun refresh(context: Context) {
             val app = context.applicationContext
             val mgr = AppWidgetManager.getInstance(app)
             val ids = mgr.getAppWidgetIds(ComponentName(app, BgWidget::class.java))
             if (ids.isEmpty()) return
-            // Only the page data is reloaded: replacing the whole widget makes the stack blank until it is swiped.
-            mgr.notifyAppWidgetViewDataChanged(ids, R.id.pages)
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    Prefs.init(app)
+                    val people = AppDb.get(app).people().all()
+                    val views = render(app, people)
+                    ids.forEach { mgr.updateAppWidget(it, views) }
+                } catch (e: Exception) {
+                    // Keep the previous picture; the next refresh retries.
+                }
+            }
         }
 
-        private fun build(app: Context, widgetId: Int): RemoteViews {
-            val v = RemoteViews(app.packageName, R.layout.widget_pages)
-            val adapter = Intent(app, WidgetPagesService::class.java)
-                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-            adapter.data = Uri.parse(adapter.toUri(Intent.URI_INTENT_SCHEME))
-            v.setRemoteAdapter(R.id.pages, adapter)
-            // The template must be mutable so each page can add its own action as a fill-in intent.
-            val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
-            v.setPendingIntentTemplate(
-                R.id.pages,
-                PendingIntent.getBroadcast(app, 13, Intent(app, BgWidget::class.java).setAction(ACTION_PAGE), flags)
+        private fun broadcast(app: Context, code: Int, intent: Intent): PendingIntent =
+            PendingIntent.getBroadcast(
+                app, code, intent.setClass(app, BgWidget::class.java),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
+
+        private fun render(app: Context, people: List<Person>): RemoteViews {
+            val count = 2 + people.size
+            val page = Prefs.now().widgetPage.coerceIn(0, count - 1)
+            val v = RemoteViews(app.packageName, R.layout.widget_pages)
+            v.setTextViewText(R.id.page_no, String.format(Locale.US, "%d/%d", page + 1, count))
+            val action = Intent(ACTION_PAGE)
+            when {
+                page == 0 -> {
+                    val state = BackgroundMode.uiState()
+                    val (bg, dot, label) = when (state) {
+                        BgUiState.ACTIVE -> Triple(R.drawable.widget_bg_on, R.drawable.widget_dot_on, t("ON"))
+                        BgUiState.ATTENTION -> Triple(R.drawable.widget_bg_on, R.drawable.widget_dot_warn, "!")
+                        BgUiState.OFF -> Triple(R.drawable.widget_bg_off, R.drawable.widget_dot_off, t("OFF"))
+                    }
+                    v.setInt(R.id.page_root, "setBackgroundResource", bg)
+                    v.setInt(R.id.page_dot, "setBackgroundResource", dot)
+                    v.setTextViewText(R.id.page_title, label)
+                    v.setTextViewText(R.id.page_sub, t("Background mode"))
+                    v.setContentDescription(
+                        R.id.page_root,
+                        t("Smart Attendance background mode") + ": " + when (state) {
+                            BgUiState.ACTIVE -> t("active")
+                            BgUiState.ATTENTION -> t("needs attention")
+                            BgUiState.OFF -> t("inactive")
+                        }
+                    )
+                    action.putExtra(EXTRA_KIND, KIND_BG)
+                }
+                page == 1 -> {
+                    v.setInt(R.id.page_root, "setBackgroundResource", R.drawable.widget_bg_exit)
+                    v.setInt(R.id.page_dot, "setBackgroundResource", R.drawable.widget_dot_off)
+                    v.setTextViewText(R.id.page_title, t("EXIT"))
+                    v.setTextViewText(R.id.page_sub, t("Tap to send exit"))
+                    v.setContentDescription(R.id.page_root, t("Send a message that I left work"))
+                    action.putExtra(EXTRA_KIND, KIND_EXIT)
+                }
+                else -> {
+                    val p = people[page - 2]
+                    v.setInt(R.id.page_root, "setBackgroundResource", if (p.enabled) R.drawable.widget_bg_on else R.drawable.widget_bg_off)
+                    v.setInt(R.id.page_dot, "setBackgroundResource", if (p.enabled) R.drawable.widget_dot_on else R.drawable.widget_dot_off)
+                    v.setTextViewText(R.id.page_title, p.name)
+                    v.setTextViewText(R.id.page_sub, if (p.enabled) t("Tracking on") else t("Tracking off"))
+                    v.setContentDescription(R.id.page_root, p.name + ": " + if (p.enabled) t("Tracking on") else t("Tracking off"))
+                    action.putExtra(EXTRA_KIND, KIND_PERSON).putExtra(EXTRA_ID, p.id)
+                }
+            }
+            // A distinct request code per page keeps each page's action separate.
+            v.setOnClickPendingIntent(R.id.page_tap, broadcast(app, 100 + page, action))
+            v.setOnClickPendingIntent(R.id.nav_prev, broadcast(app, 14, Intent(ACTION_PREV)))
+            v.setOnClickPendingIntent(R.id.nav_next, broadcast(app, 15, Intent(ACTION_NEXT)))
+            v.setContentDescription(R.id.nav_prev, t("Previous page"))
+            v.setContentDescription(R.id.nav_next, t("Next page"))
             return v
         }
 

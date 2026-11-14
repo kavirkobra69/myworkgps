@@ -67,7 +67,7 @@ private class PagesFactory(private val app: Context) : RemoteViewsService.Remote
                         BgUiState.OFF -> t("inactive")
                     }
                 )
-                fill.putExtra(WidgetActionActivity.EXTRA_KIND, WidgetActionActivity.KIND_BG)
+                fill.putExtra(BgWidget.EXTRA_KIND, BgWidget.KIND_BG)
             }
             position == 1 -> {
                 v.setInt(R.id.page_root, "setBackgroundResource", R.drawable.widget_bg_exit)
@@ -75,7 +75,7 @@ private class PagesFactory(private val app: Context) : RemoteViewsService.Remote
                 v.setTextViewText(R.id.page_title, t("EXIT"))
                 v.setTextViewText(R.id.page_sub, t("Tap to send exit"))
                 v.setContentDescription(R.id.page_root, t("Send a message that I left work"))
-                fill.putExtra(WidgetActionActivity.EXTRA_KIND, WidgetActionActivity.KIND_EXIT)
+                fill.putExtra(BgWidget.EXTRA_KIND, BgWidget.KIND_EXIT)
             }
             position - 2 in people.indices -> {
                 val p = people[position - 2]
@@ -84,8 +84,8 @@ private class PagesFactory(private val app: Context) : RemoteViewsService.Remote
                 v.setTextViewText(R.id.page_title, p.name)
                 v.setTextViewText(R.id.page_sub, if (p.enabled) t("Tracking on") else t("Tracking off"))
                 v.setContentDescription(R.id.page_root, p.name + ": " + if (p.enabled) t("Tracking on") else t("Tracking off"))
-                fill.putExtra(WidgetActionActivity.EXTRA_KIND, WidgetActionActivity.KIND_PERSON)
-                    .putExtra(WidgetActionActivity.EXTRA_ID, p.id)
+                fill.putExtra(BgWidget.EXTRA_KIND, BgWidget.KIND_PERSON)
+                    .putExtra(BgWidget.EXTRA_ID, p.id)
             }
         }
         v.setOnClickFillInIntent(R.id.page_root, fill)
@@ -94,7 +94,7 @@ private class PagesFactory(private val app: Context) : RemoteViewsService.Remote
 
     override fun getLoadingView(): RemoteViews? = null
     override fun getViewTypeCount(): Int = 1
-    override fun hasStableIds(): Boolean = true
+    override fun hasStableIds(): Boolean = false
     override fun getItemId(position: Int): Long = when {
         position == 0 -> -1L
         position == 1 -> -2L

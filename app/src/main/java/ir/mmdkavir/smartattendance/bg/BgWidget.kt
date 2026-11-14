@@ -3,13 +3,22 @@ package ir.mmdkavir.smartattendance.bg
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.widget.RemoteViews
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
+import ir.mmdkavir.smartattendance.data.AppDb
+import ir.mmdkavir.smartattendance.geo.LocationHelper
+import ir.mmdkavir.smartattendance.ui.MainActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import ir.mmdkavir.smartattendance.R
 import ir.mmdkavir.smartattendance.data.Prefs
 import ir.mmdkavir.smartattendance.geo.Notifier
@@ -34,7 +43,60 @@ class BgWidget : AppWidgetProvider() {
                 if (!BackgroundMode.enable(app)) askPermissions(app)
             }
             ACTION_DISABLE -> BackgroundMode.disable(app)
+            ACTION_PAGE -> onPageTap(app, intent)
             else -> super.onReceive(context, intent)
+        }
+    }
+
+    /** A tap on a page. Handled in the receiver (no activity is launched), so the stack is not disturbed. */
+    private fun onPageTap(app: Context, intent: Intent) {
+        val id = intent.getLongExtra(EXTRA_ID, 0L)
+        when (intent.getStringExtra(EXTRA_KIND)) {
+            KIND_BG -> toggleBackground(app)
+            KIND_EXIT -> background(app) { ExitReport.report(app) }
+            KIND_PERSON -> background(app) { togglePerson(app, id) }
+        }
+    }
+
+    private fun toggleBackground(app: Context) {
+        if (Prefs.now().bgMode) {
+            BackgroundMode.disable(app)
+            return
+        }
+        val ready = BackgroundMode.permissionsOk(app) &&
+            (LocationHelper.isLocationEnabled(app) || LocationHelper.canWriteSecure(app))
+        if (ready && BackgroundMode.enable(app)) return
+        // Permissions and the location prompt are shown only through the app UI.
+        try {
+            app.startActivity(
+                Intent(app, MainActivity::class.java)
+                    .putExtra(EXTRA_ENABLE_BG, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            )
+        } catch (e: Exception) {
+            askPermissions(app)
+        }
+    }
+
+    private suspend fun togglePerson(app: Context, id: Long): String {
+        val dao = AppDb.get(app).people()
+        val person = dao.all().firstOrNull { it.id == id } ?: return t("This person no longer exists")
+        dao.setEnabled(id, !person.enabled)
+        refresh(app)
+        return if (person.enabled) t("%s: tracking off", person.name) else t("%s: tracking on", person.name)
+    }
+
+    private fun BroadcastReceiver.background(app: Context, block: suspend () -> String) {
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            val message = try {
+                block()
+            } catch (e: Exception) {
+                t("Could not complete the widget action")
+            } finally {
+                pending.finish()
+            }
+            Handler(Looper.getMainLooper()).post { Toast.makeText(app, message, Toast.LENGTH_SHORT).show() }
         }
     }
 
@@ -51,6 +113,12 @@ class BgWidget : AppWidgetProvider() {
         const val ACTION_ENABLE = "ir.mmdkavir.smartattendance.BG_ENABLE"
         const val ACTION_DISABLE = "ir.mmdkavir.smartattendance.BG_DISABLE"
         const val EXTRA_ENABLE_BG = "enable_background_mode"
+        const val ACTION_PAGE = "ir.mmdkavir.smartattendance.WIDGET_PAGE"
+        const val EXTRA_KIND = "page_kind"
+        const val EXTRA_ID = "page_id"
+        const val KIND_BG = "bg"
+        const val KIND_EXIT = "exit"
+        const val KIND_PERSON = "person"
 
         /** Re-renders every placed widget and reloads its pages (called when state or the people list changes). */
         fun refresh(context: Context) {
@@ -58,7 +126,7 @@ class BgWidget : AppWidgetProvider() {
             val mgr = AppWidgetManager.getInstance(app)
             val ids = mgr.getAppWidgetIds(ComponentName(app, BgWidget::class.java))
             if (ids.isEmpty()) return
-            ids.forEach { mgr.updateAppWidget(it, build(app, it)) }
+            // Only the page data is reloaded: replacing the whole widget makes the stack blank until it is swiped.
             mgr.notifyAppWidgetViewDataChanged(ids, R.id.pages)
         }
 
@@ -72,7 +140,7 @@ class BgWidget : AppWidgetProvider() {
             val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
             v.setPendingIntentTemplate(
                 R.id.pages,
-                PendingIntent.getActivity(app, 13, Intent(app, WidgetActionActivity::class.java), flags)
+                PendingIntent.getBroadcast(app, 13, Intent(app, BgWidget::class.java).setAction(ACTION_PAGE), flags)
             )
             return v
         }

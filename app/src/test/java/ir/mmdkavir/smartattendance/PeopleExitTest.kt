@@ -41,6 +41,13 @@ class PeopleExitTest {
     }
 
     @Test
+    fun exitCarriesOnlyTheGivenActivePeople() {
+        assertEquals("Ali|Reza", Payload.exit(s, 1_763_000_000_000L, listOf("Ali", "Reza"))["workplace"])
+        assertEquals("", Payload.exit(s, 1_763_000_000_000L)["workplace"])
+        assertEquals("A B", Payload.exit(s, 1_763_000_000_000L, listOf("A|B"))["workplace"])
+    }
+
+    @Test
     fun repeatedExitTapsAreIgnored() {
         val t0 = 1_000_000L
         assertFalse(ExitGuard.isDuplicate(t0, 0L, false))

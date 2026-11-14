@@ -62,12 +62,18 @@ check("test message en", p.returncode == 0 and "Smart Attendance test message" i
 p, a = run({**base, "IN_KIND": "test", "IN_LANG": "fa"}, OK)
 check("test message fa", p.returncode == 0 and "پیام آزمایشی" in a)
 
-p, a = run({"IN_KIND": "exit", "IN_LANG": "en", "IN_NAME": "MmdKavir", "IN_DATE": "2026-11-14", "IN_TIME": "17:05:09"}, OK)
-sent = a.split("text=")[1].split("\n--data-urlencode\ndisable_web_page_preview")[0] if "text=" in a else ""
-check("exit message en is exact", p.returncode == 0 and sent == "WORK EXIT\n\nName: MmdKavir\nDate: 2026-11-14\nExit Time: 17:05:09\n\nStatus: LEFT WORK")
-p, a = run({"IN_KIND": "exit", "IN_LANG": "fa", "IN_NAME": "MmdKavir", "IN_DATE": "1405-08-23", "IN_TIME": "17:05:09"}, OK)
-sent = a.split("text=")[1].split("\n--data-urlencode\ndisable_web_page_preview")[0] if "text=" in a else ""
-check("exit message fa", p.returncode == 0 and all(w in sent for w in ["خروج از محل کار", "نام: MmdKavir", "تاریخ: 1405-08-23", "ساعت خروج: 17:05:09", "وضعیت: خارج شد"]))
+def sent_text(a):
+    return a.split("text=")[1].split("\n--data-urlencode\ndisable_web_page_preview")[0] if "text=" in a else ""
+
+ex = {"IN_KIND": "exit", "IN_LANG": "en", "IN_NAME": "Kavir", "IN_DATE": "2026-11-14", "IN_TIME": "18:45:07", "IN_PLACE": "Ali|Reza|Sara"}
+p, a = run(ex, OK)
+check("exit message en lists active people", p.returncode == 0 and sent_text(a) ==
+      "🚪 Work Exit\n👤 Name: Kavir\n📅 Date: 2026-11-14\n🕒 Exit: 18:45:07\n\n👥 Currently Active:\n- Ali\n- Reza\n- Sara")
+p, a = run({**ex, "IN_PLACE": ""}, OK)
+check("exit message without people omits the section", p.returncode == 0 and "Currently Active" not in a and "Exit: 18:45:07" in a)
+p, a = run({**ex, "IN_LANG": "fa", "IN_DATE": "1405-08-23", "IN_PLACE": "علی|رضا"}, OK)
+t = sent_text(a)
+check("exit message fa", p.returncode == 0 and all(w in t for w in ["خروج از محل کار", "نام: Kavir", "تاریخ: 1405-08-23", "ساعت خروج: 18:45:07", "افراد فعال:", "- علی", "- رضا"]))
 p, a = run({**base, "IN_NAME": "Ali, Sara"}, OK)
 check("arrival lists several people", p.returncode == 0 and "Name: Ali, Sara" in a)
 

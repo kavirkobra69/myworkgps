@@ -416,6 +416,12 @@ object Fa {
         "Exit message already sent or queued" to "پیام خروج قبلاً ارسال شده یا در صف است",
         "Exit recorded at %s" to "خروج در ساعت %s ثبت شد",
         "Could not send the exit message" to "ارسال پیام خروج ممکن نشد",
+        "Tap to send exit" to "برای ارسال خروج لمس کنید",
+        "This person no longer exists" to "این فرد دیگر وجود ندارد",
+        "%s: tracking off" to "%s: ردیابی خاموش شد",
+        "%s: tracking on" to "%s: ردیابی روشن شد",
+        "Could not complete the widget action" to "انجام عملیات ویجت ممکن نشد",
+        "Add widget" to "افزودن ویجت",
     )
 }
 

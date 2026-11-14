@@ -6,21 +6,24 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.widget.RemoteViews
 import android.widget.Toast
 import ir.mmdkavir.smartattendance.R
 import ir.mmdkavir.smartattendance.data.Prefs
 import ir.mmdkavir.smartattendance.geo.Notifier
 import ir.mmdkavir.smartattendance.i18n.t
-import ir.mmdkavir.smartattendance.ui.MainActivity
 
-/** 1×1 home-screen switch for background mode. Rendering always reads the real service state. */
+/** Multi-page home-screen widget: ON/OFF, EXIT, then one page per person. State is read from the real service. */
 class BgWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        Prefs.init(context.applicationContext)
-        BackgroundMode.recover(context.applicationContext)
-        ids.forEach { manager.updateAppWidget(it, render(context)) }
+        val app = context.applicationContext
+        Prefs.init(app)
+        BackgroundMode.recover(app)
+        ids.forEach { manager.updateAppWidget(it, build(app, it)) }
+        manager.notifyAppWidgetViewDataChanged(ids, R.id.pages)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -49,55 +52,29 @@ class BgWidget : AppWidgetProvider() {
         const val ACTION_DISABLE = "ir.mmdkavir.smartattendance.BG_DISABLE"
         const val EXTRA_ENABLE_BG = "enable_background_mode"
 
+        /** Re-renders every placed widget and reloads its pages (called when state or the people list changes). */
         fun refresh(context: Context) {
             val app = context.applicationContext
             val mgr = AppWidgetManager.getInstance(app)
             val ids = mgr.getAppWidgetIds(ComponentName(app, BgWidget::class.java))
             if (ids.isEmpty()) return
-            val views = render(app)
-            ids.forEach { mgr.updateAppWidget(it, views) }
+            ids.forEach { mgr.updateAppWidget(it, build(app, it)) }
+            mgr.notifyAppWidgetViewDataChanged(ids, R.id.pages)
         }
 
-        private fun render(app: Context): RemoteViews {
-            val state = BackgroundMode.uiState()
-            val v = RemoteViews(app.packageName, R.layout.widget_bg)
-            val (bg, dot, label) = when (state) {
-                BgUiState.ACTIVE -> Triple(R.drawable.widget_bg_on, R.drawable.widget_dot_on, t("ON"))
-                BgUiState.ATTENTION -> Triple(R.drawable.widget_bg_on, R.drawable.widget_dot_warn, "!")
-                BgUiState.OFF -> Triple(R.drawable.widget_bg_off, R.drawable.widget_dot_off, t("OFF"))
-            }
-            v.setInt(R.id.widget_root, "setBackgroundResource", bg)
-            v.setInt(R.id.widget_dot, "setBackgroundResource", dot)
-            v.setTextViewText(R.id.widget_label, label)
-            v.setContentDescription(
-                R.id.widget_root,
-                t("Smart Attendance background mode") + ": " + when (state) {
-                    BgUiState.ACTIVE -> t("active")
-                    BgUiState.ATTENTION -> t("needs attention")
-                    BgUiState.OFF -> t("inactive")
-                }
+        private fun build(app: Context, widgetId: Int): RemoteViews {
+            val v = RemoteViews(app.packageName, R.layout.widget_pages)
+            val adapter = Intent(app, WidgetPagesService::class.java)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+            adapter.data = Uri.parse(adapter.toUri(Intent.URI_INTENT_SCHEME))
+            v.setRemoteAdapter(R.id.pages, adapter)
+            // The template must be mutable so each page can add its own action as a fill-in intent.
+            val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
+            v.setPendingIntentTemplate(
+                R.id.pages,
+                PendingIntent.getActivity(app, 13, Intent(app, WidgetActionActivity::class.java), flags)
             )
-            v.setOnClickPendingIntent(R.id.widget_root, tapIntent(app, state))
             return v
-        }
-
-        private fun tapIntent(app: Context, state: BgUiState): PendingIntent {
-            val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            val enabled = Prefs.now().bgMode
-            if (!enabled && (!BackgroundMode.permissionsOk(app) || (!ir.mmdkavir.smartattendance.geo.LocationHelper.isLocationEnabled(app) && !ir.mmdkavir.smartattendance.geo.LocationHelper.canWriteSecure(app)))) {
-                // Permissions and the location-services prompt are shown only through the app UI.
-                return PendingIntent.getActivity(
-                    app, 10,
-                    Intent(app, MainActivity::class.java)
-                        .putExtra(EXTRA_ENABLE_BG, true)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
-                    flags
-                )
-            }
-            val action = if (state == BgUiState.OFF) ACTION_ENABLE else ACTION_DISABLE
-            return PendingIntent.getBroadcast(
-                app, 11, Intent(app, BgWidget::class.java).setAction(action), flags
-            )
         }
 
         fun canPin(context: Context): Boolean =

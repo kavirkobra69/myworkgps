@@ -35,10 +35,12 @@ object Payload {
         "lng" to coord(r.lng)
     )
 
-    fun exit(s: AppSettings, ms: Long): Map<String, String> = linkedMapOf(
+    /** [activePeople] are the enabled people at tap time, joined with "|" in the "workplace" input (unused for exits). */
+    fun exit(s: AppSettings, ms: Long, activePeople: List<String> = emptyList()): Map<String, String> = linkedMapOf(
         "kind" to "exit",
         "lang" to if (s.msgLang == "fa") "fa" else "en",
         "name" to s.name,
+        "workplace" to activePeople.joinToString("|") { it.replace('|', ' ').trim() },
         "date" to Fmt.dateStyled(ms, s.dateFormat),
         "time" to Fmt.time(ms)
     )

@@ -59,6 +59,9 @@ interface PeopleDao {
     @Query("SELECT * FROM people ORDER BY id")
     fun observeAll(): Flow<List<Person>>
 
+    @Query("SELECT * FROM people ORDER BY id")
+    suspend fun all(): List<Person>
+
     @Query("SELECT COUNT(*) FROM people")
     suspend fun count(): Int
 

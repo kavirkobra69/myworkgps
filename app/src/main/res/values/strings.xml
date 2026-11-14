@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Smart Attendance</string>
-    <string name="widget_description">Background mode switch</string>
-    <string name="widget_exit_description">Send a message that I left work</string>
+    <string name="widget_description">Background mode, exit and people pages</string>
 </resources>

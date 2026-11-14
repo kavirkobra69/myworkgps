@@ -24,7 +24,7 @@ on:
         description: Employee ID
         required: false
       workplace:
-        description: Workplace name
+        description: Workplace name (for exit - active people separated by pipes)
         required: false
       date:
         description: Date (Gregorian or Jalali, as formatted by the app)
@@ -89,10 +89,18 @@ jobs:
               TEXT="$TEXT"$'\n\n'"The GitHub Actions to Telegram connection is working."
             fi
           elif [ "${IN_KIND:-arrival}" = "exit" ]; then
+            # For exits, the "workplace" input carries the enabled people, separated by "|".
+            PEOPLE=""
+            IFS='|' read -r -a LIST <<< "$PLACE"
+            for P in "${LIST[@]:-}"; do
+              if [ -n "${P// /}" ]; then PEOPLE="${PEOPLE}"$'\n'"- $P"; fi
+            done
             if [ "${IN_LANG:-en}" = "fa" ]; then
-              TEXT="خروج از محل کار"$'\n\n'"نام: $NAME"$'\n'"تاریخ: $DATE"$'\n'"ساعت خروج: $TIME"$'\n\n'"وضعیت: خارج شد"
+              TEXT="🚪 خروج از محل کار"$'\n'"👤 نام: $NAME"$'\n'"📅 تاریخ: $DATE"$'\n'"🕒 ساعت خروج: $TIME"
+              [ -n "$PEOPLE" ] && TEXT="${TEXT}"$'\n\n'"👥 افراد فعال:${PEOPLE}"
             else
-              TEXT="WORK EXIT"$'\n\n'"Name: $NAME"$'\n'"Date: $DATE"$'\n'"Exit Time: $TIME"$'\n\n'"Status: LEFT WORK"
+              TEXT="🚪 Work Exit"$'\n'"👤 Name: $NAME"$'\n'"📅 Date: $DATE"$'\n'"🕒 Exit: $TIME"
+              [ -n "$PEOPLE" ] && TEXT="${TEXT}"$'\n\n'"👥 Currently Active:${PEOPLE}"
             fi
           else
             if ! [[ "${IN_LAT:-}" =~ $NUM ]] || ! [[ "${IN_LNG:-}" =~ $NUM ]]; then

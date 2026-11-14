@@ -188,22 +188,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (Prefs.now().setupDone) ir.mmdkavir.smartattendance.geo.GeofenceController.ensure(c)
     }
 
+    private fun refreshWidget() = ir.mmdkavir.smartattendance.bg.BgWidget.refresh(getApplication())
+
     fun addPerson(rawName: String): Boolean {
-        val name = rawName.trim().replace(Regex("\\s+"), " ").take(60)
+        val name = rawName.replace('|', ' ').trim().replace(Regex("\\s+"), " ").take(60)
         if (name.isEmpty()) { toast(t("Enter a name first")); return false }
         if (people.value.any { it.name.equals(name, ignoreCase = true) }) {
             toast(t("This name is already in the list")); return false
         }
-        viewModelScope.launch(Dispatchers.IO) { db.people().insert(Person(name = name)) }
+        viewModelScope.launch(Dispatchers.IO) { db.people().insert(Person(name = name)); refreshWidget() }
         return true
     }
 
     fun setPersonEnabled(id: Long, enabled: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) { db.people().setEnabled(id, enabled) }
+        viewModelScope.launch(Dispatchers.IO) { db.people().setEnabled(id, enabled); refreshWidget() }
     }
 
     fun deletePerson(id: Long) {
-        viewModelScope.launch(Dispatchers.IO) { db.people().delete(id) }
+        viewModelScope.launch(Dispatchers.IO) { db.people().delete(id); refreshWidget() }
     }
 
     /** Removes records from this phone's history only. Telegram messages and GitHub runs are untouched. */

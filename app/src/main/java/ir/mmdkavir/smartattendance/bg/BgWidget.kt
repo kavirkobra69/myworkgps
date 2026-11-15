@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.widget.RemoteViews
 import android.widget.Toast
 import ir.mmdkavir.smartattendance.R
@@ -25,7 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.Locale
 
 /**
  * Home-screen widget with fixed pages: 1 = ON/OFF, 2 = EXIT, 3… = one page per person. The current page is drawn
@@ -186,52 +186,72 @@ class BgWidget : AppWidgetProvider() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
 
+        private val DOTS = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4, R.id.dot5, R.id.dot6, R.id.dot7)
+
         private fun render(app: Context, people: List<Person>): RemoteViews {
             val count = 2 + people.size
             val page = Prefs.now().widgetPage.coerceIn(0, count - 1)
             val v = RemoteViews(app.packageName, R.layout.widget_pages)
-            v.setTextViewText(R.id.page_no, String.format(Locale.US, "%d/%d", page + 1, count))
+
+            // Page indicator: up to 8 dots; with more pages the active dot moves proportionally.
+            val shown = minOf(count, DOTS.size)
+            val active = if (count <= DOTS.size) page else (page * DOTS.size / count).coerceAtMost(DOTS.size - 1)
+            DOTS.forEachIndexed { i, id ->
+                v.setViewVisibility(id, if (i < shown) View.VISIBLE else View.GONE)
+                v.setInt(id, "setBackgroundResource", if (i == active) R.drawable.widget_pdot_on else R.drawable.widget_pdot_off)
+            }
+
             val action = Intent(ACTION_PAGE)
+            val bg: Int
+            val icon: Int
+            val title: String
+            val sub: String
+            val description: String
             when {
                 page == 0 -> {
                     val state = BackgroundMode.uiState()
-                    val (bg, dot, label) = when (state) {
-                        BgUiState.ACTIVE -> Triple(R.drawable.widget_bg_on, R.drawable.widget_dot_on, t("ON"))
-                        BgUiState.ATTENTION -> Triple(R.drawable.widget_bg_on, R.drawable.widget_dot_warn, "!")
-                        BgUiState.OFF -> Triple(R.drawable.widget_bg_off, R.drawable.widget_dot_off, t("OFF"))
+                    bg = when (state) {
+                        BgUiState.ACTIVE -> R.drawable.widget_bg_on
+                        BgUiState.ATTENTION -> R.drawable.widget_bg_warn
+                        BgUiState.OFF -> R.drawable.widget_bg_off
                     }
-                    v.setInt(R.id.page_root, "setBackgroundResource", bg)
-                    v.setInt(R.id.page_dot, "setBackgroundResource", dot)
-                    v.setTextViewText(R.id.page_title, label)
-                    v.setTextViewText(R.id.page_sub, t("Background mode"))
-                    v.setContentDescription(
-                        R.id.page_root,
-                        t("Smart Attendance background mode") + ": " + when (state) {
-                            BgUiState.ACTIVE -> t("active")
-                            BgUiState.ATTENTION -> t("needs attention")
-                            BgUiState.OFF -> t("inactive")
-                        }
-                    )
+                    icon = R.drawable.ic_w_power
+                    title = when (state) {
+                        BgUiState.ACTIVE -> t("ON")
+                        BgUiState.ATTENTION -> "!"
+                        BgUiState.OFF -> t("OFF")
+                    }
+                    sub = t("Background mode")
+                    description = t("Smart Attendance background mode") + ": " + when (state) {
+                        BgUiState.ACTIVE -> t("active")
+                        BgUiState.ATTENTION -> t("needs attention")
+                        BgUiState.OFF -> t("inactive")
+                    }
                     action.putExtra(EXTRA_KIND, KIND_BG)
                 }
                 page == 1 -> {
-                    v.setInt(R.id.page_root, "setBackgroundResource", R.drawable.widget_bg_exit)
-                    v.setInt(R.id.page_dot, "setBackgroundResource", R.drawable.widget_dot_off)
-                    v.setTextViewText(R.id.page_title, t("EXIT"))
-                    v.setTextViewText(R.id.page_sub, t("Tap to send exit"))
-                    v.setContentDescription(R.id.page_root, t("Send a message that I left work"))
+                    bg = R.drawable.widget_bg_exit
+                    icon = R.drawable.ic_w_exit
+                    title = t("EXIT")
+                    sub = t("Tap to send exit")
+                    description = t("Send a message that I left work")
                     action.putExtra(EXTRA_KIND, KIND_EXIT)
                 }
                 else -> {
                     val p = people[page - 2]
-                    v.setInt(R.id.page_root, "setBackgroundResource", if (p.enabled) R.drawable.widget_bg_on else R.drawable.widget_bg_off)
-                    v.setInt(R.id.page_dot, "setBackgroundResource", if (p.enabled) R.drawable.widget_dot_on else R.drawable.widget_dot_off)
-                    v.setTextViewText(R.id.page_title, p.name)
-                    v.setTextViewText(R.id.page_sub, if (p.enabled) t("Tracking on") else t("Tracking off"))
-                    v.setContentDescription(R.id.page_root, p.name + ": " + if (p.enabled) t("Tracking on") else t("Tracking off"))
+                    bg = if (p.enabled) R.drawable.widget_bg_person else R.drawable.widget_bg_off
+                    icon = R.drawable.ic_w_person
+                    title = p.name
+                    sub = if (p.enabled) t("Tracking on") else t("Tracking off")
+                    description = p.name + ": " + sub
                     action.putExtra(EXTRA_KIND, KIND_PERSON).putExtra(EXTRA_ID, p.id)
                 }
             }
+            v.setInt(R.id.page_root, "setBackgroundResource", bg)
+            v.setImageViewResource(R.id.page_icon, icon)
+            v.setTextViewText(R.id.page_title, title)
+            v.setTextViewText(R.id.page_sub, sub)
+            v.setContentDescription(R.id.page_root, description)
             // A distinct request code per page keeps each page's action separate.
             v.setOnClickPendingIntent(R.id.page_tap, broadcast(app, 100 + page, action))
             v.setOnClickPendingIntent(R.id.nav_prev, broadcast(app, 14, Intent(ACTION_PREV)))

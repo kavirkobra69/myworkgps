@@ -27,6 +27,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+/** One page of the widget, ready to draw. Shared by the arrow widget and the swipe widget. */
+class PageSpec(
+    val bg: Int, val icon: Int, val title: String, val sub: String,
+    val description: String, val kind: String, val id: Long
+)
+
 /**
  * Home-screen widget with fixed pages: 1 = ON/OFF, 2 = EXIT, 3… = one page per person. The current page is drawn
  * completely in one RemoteViews (no collection view), with ‹ › arrows to move between pages.
@@ -190,12 +196,6 @@ class BgWidget : AppWidgetProvider() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
 
-
-        /** One page of the widget, ready to draw. Shared by the arrow widget and the swipe widget. */
-        class PageSpec(
-            val bg: Int, val icon: Int, val title: String, val sub: String,
-            val description: String, val kind: String, val id: Long
-        )
 
         /** Fixed order: 1 = ON/OFF, 2 = EXIT, 3… = one page per person. */
         fun pageSpecs(people: List<Person>): List<PageSpec> {

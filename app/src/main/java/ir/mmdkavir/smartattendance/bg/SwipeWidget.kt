@@ -58,7 +58,7 @@ class SwipePagesService : RemoteViewsService() {
 }
 
 private class SwipeFactory(private val app: Context) : RemoteViewsService.RemoteViewsFactory {
-    private var specs: List<BgWidget.PageSpec> = emptyList()
+    private var specs: List<PageSpec> = emptyList()
 
     override fun onCreate() { load() }
     override fun onDataSetChanged() { load() }

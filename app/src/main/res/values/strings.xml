@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">Smart Attendance</string>
     <string name="widget_description">Background mode, exit and people pages</string>
+    <string name="widget_swipe_label">Smart Attendance (swipe)</string>
+    <string name="widget_swipe_description">Swipe up or down to change page: ON/OFF, exit and people</string>
 </resources>

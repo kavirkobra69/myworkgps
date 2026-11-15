@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">حضور هوشمند</string>
     <string name="widget_description">صفحات حالت پس‌زمینه، خروج و افراد</string>
+    <string name="widget_swipe_label">حضور هوشمند (کشیدنی)</string>
+    <string name="widget_swipe_description">با کشیدن بالا یا پایین صفحه را عوض کنید: روشن/خاموش، خروج و افراد</string>
 </resources>

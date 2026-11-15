@@ -426,6 +426,7 @@ object Fa {
         "Next page" to "صفحه‌ی بعد",
         "Background" to "پس‌زمینه",
         "Send exit" to "ارسال خروج",
+        "Add swipe widget" to "افزودن ویجت کشیدنی",
     )
 }
 

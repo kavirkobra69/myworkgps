@@ -81,6 +81,12 @@ fun BackgroundCard(vm: MainViewModel, s: AppSettings, actions: PermissionActions
                     },
                     shape = RoundedCornerShape(14.dp)
                 ) { Text(t("Add widget")) }
+                OutlinedButton(
+                    onClick = {
+                        if (!ir.mmdkavir.smartattendance.bg.SwipeWidget.requestPin(context)) vm.toast(t("Could not add the widget. Add it from your home screen widgets list."))
+                    },
+                    shape = RoundedCornerShape(14.dp)
+                ) { Text(t("Add swipe widget")) }
             }
         }
         Text(

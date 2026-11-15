@@ -162,9 +162,13 @@ class BgWidget : AppWidgetProvider() {
                 Prefs.init(app)
                 val mgr = AppWidgetManager.getInstance(app)
                 val ids = mgr.getAppWidgetIds(ComponentName(app, BgWidget::class.java))
-                if (ids.isEmpty()) return
-                val views = render(app, AppDb.get(app).people().all())
-                ids.forEach { mgr.updateAppWidget(it, views) }
+                if (ids.isNotEmpty()) {
+                    val views = render(app, AppDb.get(app).people().all())
+                    ids.forEach { mgr.updateAppWidget(it, views) }
+                }
+                // The swipe widget only reloads its page data (replacing the whole widget would blank the stack).
+                val swipeIds = mgr.getAppWidgetIds(ComponentName(app, SwipeWidget::class.java))
+                if (swipeIds.isNotEmpty()) mgr.notifyAppWidgetViewDataChanged(swipeIds, R.id.pages)
             }
         }
 
@@ -186,72 +190,81 @@ class BgWidget : AppWidgetProvider() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
 
+
+        /** One page of the widget, ready to draw. Shared by the arrow widget and the swipe widget. */
+        class PageSpec(
+            val bg: Int, val icon: Int, val title: String, val sub: String,
+            val description: String, val kind: String, val id: Long
+        )
+
+        /** Fixed order: 1 = ON/OFF, 2 = EXIT, 3… = one page per person. */
+        fun pageSpecs(people: List<Person>): List<PageSpec> {
+            val state = BackgroundMode.uiState()
+            val list = ArrayList<PageSpec>()
+            list += PageSpec(
+                bg = when (state) {
+                    BgUiState.ACTIVE -> R.drawable.widget_bg_on
+                    BgUiState.ATTENTION -> R.drawable.widget_bg_warn
+                    BgUiState.OFF -> R.drawable.widget_bg_off
+                },
+                icon = R.drawable.ic_w_power,
+                title = when (state) {
+                    BgUiState.ACTIVE -> t("ON")
+                    BgUiState.ATTENTION -> "!"
+                    BgUiState.OFF -> t("OFF")
+                },
+                sub = t("Background"),
+                description = t("Smart Attendance background mode") + ": " + when (state) {
+                    BgUiState.ACTIVE -> t("active")
+                    BgUiState.ATTENTION -> t("needs attention")
+                    BgUiState.OFF -> t("inactive")
+                },
+                kind = KIND_BG, id = 0L
+            )
+            list += PageSpec(
+                R.drawable.widget_bg_exit, R.drawable.ic_w_exit, t("EXIT"), t("Send exit"),
+                t("Send a message that I left work"), KIND_EXIT, 0L
+            )
+            people.forEach { p ->
+                list += PageSpec(
+                    if (p.enabled) R.drawable.widget_bg_person else R.drawable.widget_bg_off,
+                    R.drawable.ic_w_person, p.name, if (p.enabled) t("ON") else t("OFF"),
+                    p.name + ": " + if (p.enabled) t("Tracking on") else t("Tracking off"),
+                    KIND_PERSON, p.id
+                )
+            }
+            return list
+        }
+
         private val DOTS = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4, R.id.dot5, R.id.dot6, R.id.dot7)
 
-        private fun render(app: Context, people: List<Person>): RemoteViews {
-            val count = 2 + people.size
-            val page = Prefs.now().widgetPage.coerceIn(0, count - 1)
-            val v = RemoteViews(app.packageName, R.layout.widget_pages)
-
-            // Page indicator: up to 8 dots; with more pages the active dot moves proportionally.
+        /** Page indicator: up to 8 dots; with more pages the active dot moves proportionally. */
+        fun applyDots(v: RemoteViews, page: Int, count: Int) {
             val shown = minOf(count, DOTS.size)
             val active = if (count <= DOTS.size) page else (page * DOTS.size / count).coerceAtMost(DOTS.size - 1)
             DOTS.forEachIndexed { i, id ->
                 v.setViewVisibility(id, if (i < shown) View.VISIBLE else View.GONE)
                 v.setInt(id, "setBackgroundResource", if (i == active) R.drawable.widget_pdot_on else R.drawable.widget_pdot_off)
             }
+        }
 
-            val action = Intent(ACTION_PAGE)
-            val bg: Int
-            val icon: Int
-            val title: String
-            val sub: String
-            val description: String
-            when {
-                page == 0 -> {
-                    val state = BackgroundMode.uiState()
-                    bg = when (state) {
-                        BgUiState.ACTIVE -> R.drawable.widget_bg_on
-                        BgUiState.ATTENTION -> R.drawable.widget_bg_warn
-                        BgUiState.OFF -> R.drawable.widget_bg_off
-                    }
-                    icon = R.drawable.ic_w_power
-                    title = when (state) {
-                        BgUiState.ACTIVE -> t("ON")
-                        BgUiState.ATTENTION -> "!"
-                        BgUiState.OFF -> t("OFF")
-                    }
-                    sub = t("Background")
-                    description = t("Smart Attendance background mode") + ": " + when (state) {
-                        BgUiState.ACTIVE -> t("active")
-                        BgUiState.ATTENTION -> t("needs attention")
-                        BgUiState.OFF -> t("inactive")
-                    }
-                    action.putExtra(EXTRA_KIND, KIND_BG)
-                }
-                page == 1 -> {
-                    bg = R.drawable.widget_bg_exit
-                    icon = R.drawable.ic_w_exit
-                    title = t("EXIT")
-                    sub = t("Send exit")
-                    description = t("Send a message that I left work")
-                    action.putExtra(EXTRA_KIND, KIND_EXIT)
-                }
-                else -> {
-                    val p = people[page - 2]
-                    bg = if (p.enabled) R.drawable.widget_bg_person else R.drawable.widget_bg_off
-                    icon = R.drawable.ic_w_person
-                    title = p.name
-                    sub = if (p.enabled) t("ON") else t("OFF")
-                    description = p.name + ": " + if (p.enabled) t("Tracking on") else t("Tracking off")
-                    action.putExtra(EXTRA_KIND, KIND_PERSON).putExtra(EXTRA_ID, p.id)
-                }
-            }
-            v.setInt(R.id.page_root, "setBackgroundResource", bg)
-            v.setImageViewResource(R.id.page_icon, icon)
-            v.setTextViewText(R.id.page_title, title)
-            v.setTextViewText(R.id.page_sub, sub)
-            v.setContentDescription(R.id.page_root, description)
+        /** Fills the card views (background, icon, texts) for one page. */
+        fun applyPage(v: RemoteViews, spec: PageSpec) {
+            v.setInt(R.id.page_root, "setBackgroundResource", spec.bg)
+            v.setImageViewResource(R.id.page_icon, spec.icon)
+            v.setTextViewText(R.id.page_title, spec.title)
+            v.setTextViewText(R.id.page_sub, spec.sub)
+            v.setContentDescription(R.id.page_root, spec.description)
+        }
+
+        private fun render(app: Context, people: List<Person>): RemoteViews {
+            val specs = pageSpecs(people)
+            val page = Prefs.now().widgetPage.coerceIn(0, specs.size - 1)
+            val spec = specs[page]
+            val v = RemoteViews(app.packageName, R.layout.widget_pages)
+            applyDots(v, page, specs.size)
+            applyPage(v, spec)
+            val action = Intent(ACTION_PAGE).putExtra(EXTRA_KIND, spec.kind).putExtra(EXTRA_ID, spec.id)
             // A distinct request code per page keeps each page's action separate.
             v.setOnClickPendingIntent(R.id.page_tap, broadcast(app, 100 + page, action))
             v.setOnClickPendingIntent(R.id.nav_prev, broadcast(app, 14, Intent(ACTION_PREV)))

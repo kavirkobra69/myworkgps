@@ -23,6 +23,8 @@ import ir.mmdkavir.smartattendance.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.Locale
 
 /**
@@ -34,8 +36,18 @@ class BgWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         val app = context.applicationContext
         Prefs.init(app)
-        BackgroundMode.recover(app)
-        refresh(app)
+        // goAsync keeps the process alive until the page is really drawn (otherwise the widget can stay blank).
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                BackgroundMode.recover(app)
+                redraw(app)
+            } catch (e: Exception) {
+                // The next refresh retries.
+            } finally {
+                pending.finish()
+            }
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -60,7 +72,7 @@ class BgWidget : AppWidgetProvider() {
                 val count = 2 + AppDb.get(app).people().all().size
                 val page = ((Prefs.now().widgetPage + step) % count + count) % count
                 Prefs.edit { putInt(Keys.WIDGET_PAGE, page) }
-                refresh(app)
+                redraw(app)
             } finally {
                 pending.finish()
             }
@@ -101,7 +113,7 @@ class BgWidget : AppWidgetProvider() {
         val dao = AppDb.get(app).people()
         val person = dao.all().firstOrNull { it.id == id } ?: return t("This person no longer exists")
         dao.setEnabled(id, !person.enabled)
-        refresh(app)
+        redraw(app)
         return if (person.enabled) t("%s: tracking off", person.name) else t("%s: tracking on", person.name)
     }
 
@@ -141,18 +153,27 @@ class BgWidget : AppWidgetProvider() {
         const val KIND_EXIT = "exit"
         const val KIND_PERSON = "person"
 
-        /** Redraws every placed widget from the real state (service, people list, current page). */
+        private val drawLock = Mutex()
+
+        /** Redraws every placed widget from the real state. Calls are serialized so an old picture never wins. */
+        suspend fun redraw(context: Context) {
+            val app = context.applicationContext
+            drawLock.withLock {
+                Prefs.init(app)
+                val mgr = AppWidgetManager.getInstance(app)
+                val ids = mgr.getAppWidgetIds(ComponentName(app, BgWidget::class.java))
+                if (ids.isEmpty()) return
+                val views = render(app, AppDb.get(app).people().all())
+                ids.forEach { mgr.updateAppWidget(it, views) }
+            }
+        }
+
+        /** Fire-and-forget redraw for callers that stay alive on their own (service, app). */
         fun refresh(context: Context) {
             val app = context.applicationContext
-            val mgr = AppWidgetManager.getInstance(app)
-            val ids = mgr.getAppWidgetIds(ComponentName(app, BgWidget::class.java))
-            if (ids.isEmpty()) return
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    Prefs.init(app)
-                    val people = AppDb.get(app).people().all()
-                    val views = render(app, people)
-                    ids.forEach { mgr.updateAppWidget(it, views) }
+                    redraw(app)
                 } catch (e: Exception) {
                     // Keep the previous picture; the next refresh retries.
                 }

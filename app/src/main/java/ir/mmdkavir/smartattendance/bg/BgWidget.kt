@@ -221,7 +221,7 @@ class BgWidget : AppWidgetProvider() {
                         BgUiState.ATTENTION -> "!"
                         BgUiState.OFF -> t("OFF")
                     }
-                    sub = t("Background mode")
+                    sub = t("Background")
                     description = t("Smart Attendance background mode") + ": " + when (state) {
                         BgUiState.ACTIVE -> t("active")
                         BgUiState.ATTENTION -> t("needs attention")
@@ -233,7 +233,7 @@ class BgWidget : AppWidgetProvider() {
                     bg = R.drawable.widget_bg_exit
                     icon = R.drawable.ic_w_exit
                     title = t("EXIT")
-                    sub = t("Tap to send exit")
+                    sub = t("Send exit")
                     description = t("Send a message that I left work")
                     action.putExtra(EXTRA_KIND, KIND_EXIT)
                 }
@@ -242,8 +242,8 @@ class BgWidget : AppWidgetProvider() {
                     bg = if (p.enabled) R.drawable.widget_bg_person else R.drawable.widget_bg_off
                     icon = R.drawable.ic_w_person
                     title = p.name
-                    sub = if (p.enabled) t("Tracking on") else t("Tracking off")
-                    description = p.name + ": " + sub
+                    sub = if (p.enabled) t("ON") else t("OFF")
+                    description = p.name + ": " + if (p.enabled) t("Tracking on") else t("Tracking off")
                     action.putExtra(EXTRA_KIND, KIND_PERSON).putExtra(EXTRA_ID, p.id)
                 }
             }

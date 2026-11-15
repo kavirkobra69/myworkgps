@@ -424,6 +424,8 @@ object Fa {
         "Add widget" to "افزودن ویجت",
         "Previous page" to "صفحه‌ی قبل",
         "Next page" to "صفحه‌ی بعد",
+        "Background" to "پس‌زمینه",
+        "Send exit" to "ارسال خروج",
     )
 }
 
